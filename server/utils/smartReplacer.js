@@ -140,14 +140,14 @@ async function replaceComponent(originalComponent, alternative) {
     // Crea nuovo componente sostituto
     const replacementData = {
       ...originalComponent,
-      name: alternative.name,
-      price: alternative.price,
-      amazon_link: alternative.amazonLink,
-      image_url: alternative.imageUrl,
+      name: alternative.name || originalComponent.name,
+      price: parseFloat(alternative.price) || originalComponent.price,
+      amazon_link: alternative.amazonLink || originalComponent.amazon_link,
+      image_url: alternative.imageUrl || originalComponent.image_url,
       is_replacement: true,
       original_component_id: originalComponent.id,
-      replacement_reason: `Prodotto esaurito - sostituzione automatica (${alternative.searchQuery})`,
-      price_difference: priceDiff.difference,
+      replacement_reason: `Prodotto esaurito - sostituzione automatica (${alternative.searchQuery || 'query non specificata'})`,
+      price_difference: priceDiff.difference || 0,
       last_checked: new Date().toISOString(),
       is_available: true
     };

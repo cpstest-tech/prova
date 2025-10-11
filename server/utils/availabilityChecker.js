@@ -98,7 +98,7 @@ async function simulateAmazonCheck(asin) {
     // 15% esaurito
     return {
       available: false,
-      price: null,
+      price: 0,
       stockStatus: 'Out of Stock'
     };
   } else {
@@ -210,7 +210,10 @@ export function formatPrice(price) {
  * @returns {Object} - Differenza formattata
  */
 export function calculatePriceDifference(originalPrice, newPrice) {
-  if (!originalPrice || !newPrice) {
+  const origPrice = parseFloat(originalPrice) || 0;
+  const newPriceVal = parseFloat(newPrice) || 0;
+  
+  if (origPrice === 0 && newPriceVal === 0) {
     return {
       difference: 0,
       percentage: 0,
@@ -219,8 +222,8 @@ export function calculatePriceDifference(originalPrice, newPrice) {
     };
   }
   
-  const difference = newPrice - originalPrice;
-  const percentage = Math.round((difference / originalPrice) * 100);
+  const difference = newPriceVal - origPrice;
+  const percentage = origPrice > 0 ? Math.round((difference / origPrice) * 100) : 0;
   
   return {
     difference: difference,
