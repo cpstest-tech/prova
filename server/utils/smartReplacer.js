@@ -55,8 +55,8 @@ export async function checkAndReplaceComponents(buildId) {
         // Aggiorna stato disponibilità
         await Component.updateAvailability(
           component.id, 
-          availability.available, 
-          availability.lastChecked
+          availability.available || false, 
+          availability.lastChecked || new Date().toISOString()
         );
         
         if (!availability.available && component.search_query) {

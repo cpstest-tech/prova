@@ -179,6 +179,10 @@ export class Component {
 
   static updateAvailability(id, isAvailable, lastChecked = null) {
     const stmt = db.prepare('UPDATE components SET is_available = ?, last_checked = ? WHERE id = ?');
-    return stmt.run(isAvailable, lastChecked || new Date().toISOString(), id);
+    return stmt.run(
+      isAvailable !== undefined ? isAvailable : true, 
+      lastChecked || new Date().toISOString(), 
+      id
+    );
   }
 }
