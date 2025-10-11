@@ -1,4 +1,5 @@
-// import fetch from 'node-fetch'; // Non necessario per la simulazione
+import { searchAmazonProducts } from './amazonPAAPI.js';
+import REPLACEMENT_CONFIG from '../config/replacement.js';
 
 /**
  * Utility per la ricerca di alternative automatiche su Amazon
@@ -18,15 +19,14 @@ const SEARCH_CONFIG = {
  * @param {string} componentType - Tipo di componente (per filtrare risultati)
  * @returns {Array} - Array di prodotti trovati
  */
-export async function searchAmazonProducts(searchQuery, componentType = null) {
+export async function searchAmazonProductsWithPAAPI(searchQuery, componentType = null) {
   if (!searchQuery || searchQuery.trim().length === 0) {
     return [];
   }
 
   try {
-    // Simula la ricerca su Amazon
-    // In un'implementazione reale, useresti l'Amazon Product Advertising API
-    const results = await simulateAmazonSearch(searchQuery, componentType);
+    // Usa Amazon PA-API per la ricerca reale
+    const results = await searchAmazonProducts(searchQuery, REPLACEMENT_CONFIG.amazon);
     
     return results.map(product => ({
       asin: product.asin,
@@ -138,7 +138,7 @@ export async function findAlternativeByQuery(component) {
     
     try {
       // Cerca su Amazon con la query specifica
-      const results = await searchAmazonProducts(query, component.type);
+      const results = await searchAmazonProductsWithPAAPI(query, component.type);
       
       // Prendi il primo disponibile
       const available = results.find(r => r.availability === 'In Stock' || r.availability === 'Limited Stock');

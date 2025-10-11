@@ -1,4 +1,5 @@
-// import fetch from 'node-fetch'; // Non necessario per la simulazione
+import { getProductDetails } from './amazonPAAPI.js';
+import REPLACEMENT_CONFIG from '../config/replacement.js';
 
 /**
  * Utility per controllare la disponibilità dei prodotti Amazon
@@ -38,7 +39,7 @@ export function extractASIN(amazonLink) {
 }
 
 /**
- * Simula una richiesta per controllare la disponibilità di un prodotto Amazon
+ * Controlla la disponibilità di un prodotto Amazon usando PA-API
  * @param {string} asin - ASIN del prodotto
  * @returns {Object} - Informazioni sulla disponibilità
  */
@@ -51,18 +52,25 @@ export async function checkProductAvailability(asin) {
   }
 
   try {
-    // Simula il controllo della disponibilità
-    // In un'implementazione reale, useresti l'Amazon Product Advertising API
-    // o fare scraping del sito Amazon (attenzione ai ToS)
+    // Usa Amazon PA-API se configurata, altrimenti simula
+    const productDetails = await getProductDetails(asin, REPLACEMENT_CONFIG.amazon);
     
-    const mockAvailability = await simulateAmazonCheck(asin);
+    if (productDetails) {
+      return {
+        available: productDetails.availability === 'In Stock' || productDetails.availability === 'Limited Stock',
+        price: productDetails.price,
+        stockStatus: productDetails.availability,
+        lastChecked: new Date().toISOString(),
+        asin: asin,
+        name: productDetails.name,
+        brand: productDetails.brand
+      };
+    }
     
     return {
-      available: mockAvailability.available,
-      price: mockAvailability.price,
-      stockStatus: mockAvailability.stockStatus,
-      lastChecked: new Date().toISOString(),
-      asin: asin
+      available: false,
+      error: 'Prodotto non trovato',
+      lastChecked: new Date().toISOString()
     };
     
   } catch (error) {

@@ -48,16 +48,21 @@ export const REPLACEMENT_CONFIG = {
     retryDelay: 30000
   },
   
-  // Configurazione Amazon API (quando implementata)
+  // Configurazione Amazon Product Advertising API
   amazon: {
     // Endpoint API Amazon Product Advertising
     apiEndpoint: 'https://webservices.amazon.it/paapi5/searchitems',
     
-    // Partner tag
-    partnerTag: 'cpstest05-21',
+    // Credenziali Amazon PA-API (da configurare)
+    accessKeyId: process.env.AMAZON_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AMAZON_SECRET_ACCESS_KEY,
+    partnerTag: process.env.AMAZON_PARTNER_TAG || 'cpstest05-21',
     
     // Marketplace ID per Italia
     marketplace: 'APJ6JRA9NG5V4',
+    
+    // Host per l'API
+    host: 'webservices.amazon.it',
     
     // Configurazione rate limiting
     rateLimit: {
