@@ -17,9 +17,23 @@ export default function Home() {
     try {
       setLoading(true);
       const response = await axios.get('/api/builds');
-      setBuilds(response.data.builds);
+      console.log('API Response:', response.data); // Debug log
+      
+      // Verifica che la risposta abbia la struttura corretta
+      if (response.data && Array.isArray(response.data.builds)) {
+        setBuilds(response.data.builds);
+      } else {
+        console.error('Invalid API response structure:', response.data);
+        setBuilds([]);
+      }
     } catch (error) {
       console.error('Error fetching builds:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      setBuilds([]);
     } finally {
       setLoading(false);
     }

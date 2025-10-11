@@ -1,10 +1,16 @@
 import { ExternalLink, Package, ShoppingCart } from 'lucide-react';
 import { formatPrice, calculateTotal } from '../utils/format';
 import { motion } from 'framer-motion';
+import { SimpleReplacementBadge } from './ReplacementBadge';
 
 export default function ComponentsList({ components }) {
-  if (!components || components.length === 0) {
-    return null;
+  // Gestione più robusta degli errori
+  if (!components || !Array.isArray(components) || components.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Nessun componente disponibile</p>
+      </div>
+    );
   }
 
   // Ordine obbligatorio per i componenti
@@ -21,6 +27,12 @@ export default function ComponentsList({ components }) {
 
   // Funzione per ordinare i componenti secondo l'ordine specificato
   const sortComponents = (components) => {
+    // Verifica che components sia un array valido
+    if (!Array.isArray(components)) {
+      console.error('ComponentsList: components is not an array:', components);
+      return [];
+    }
+    
     return [...components].sort((a, b) => {
       const indexA = componentOrder.indexOf(a.type);
       const indexB = componentOrder.indexOf(b.type);
@@ -75,9 +87,12 @@ export default function ComponentsList({ components }) {
                 <span className="uppercase tracking-wide">{component.type}</span>
               </div>
             </div>
-            <h3 className="font-bold card-title mb-2 group-hover:text-violet-300 transition-colors">
-              {component.name}
-            </h3>
+            <div className="flex items-start justify-between mb-2">
+              <h3 className="font-bold card-title group-hover:text-violet-300 transition-colors">
+                {component.name}
+              </h3>
+              <SimpleReplacementBadge component={component} />
+            </div>
             {component.specs && (
               <p className="text-sm card-text leading-relaxed mb-4">{component.specs}</p>
             )}

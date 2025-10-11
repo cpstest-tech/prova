@@ -160,20 +160,88 @@ router.delete('/builds/:id', (req, res) => {
 // Upload immagine
 router.post('/upload', upload.single('image'), (req, res) => {
   try {
+    console.log('📤 Upload attempt:', {
+      hasFile: !!req.file,
+      fileInfo: req.file ? {
+        filename: req.file.filename,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        originalname: req.file.originalname
+      } : null,
+      body: req.body,
+      headers: {
+        'content-type': req.get('content-type'),
+        'content-length': req.get('content-length')
+      }
+    });
+
     if (!req.file) {
+      console.log('❌ No file in request');
       return res.status(400).json({ error: { message: 'Nessun file caricato' } });
     }
 
     const imageUrl = `/uploads/${req.file.filename}`;
 
+    console.log('✅ Upload successful:', {
+      filename: req.file.filename,
+      size: req.file.size,
+      url: imageUrl
+    });
+
     res.json({ 
       message: 'Immagine caricata con successo',
       url: imageUrl,
-      filename: req.file.filename
+      filename: req.file.filename,
+      size: req.file.size
     });
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: { message: 'Errore nel caricamento dell\'immagine' } });
+    console.error('❌ Upload error:', error);
+    
+    // Gestione errori specifici per AWS EC2
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ 
+        error: { 
+          message: 'File troppo grande. Dimensione massima: 50MB',
+          code: 'LIMIT_FILE_SIZE',
+          limit: process.env.MAX_FILE_SIZE || '50MB'
+        } 
+      });
+    }
+    
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ 
+        error: { 
+          message: 'Troppi file caricati. Massimo 1 file per volta.',
+          code: 'LIMIT_UNEXPECTED_FILE'
+        } 
+      });
+    }
+
+    if (error.code === 'LIMIT_PART_COUNT') {
+      return res.status(413).json({ 
+        error: { 
+          message: 'Troppe parti nel form. Riduci i campi del form.',
+          code: 'LIMIT_PART_COUNT'
+        } 
+      });
+    }
+
+    if (error.code === 'LIMIT_FIELD_COUNT') {
+      return res.status(413).json({ 
+        error: { 
+          message: 'Troppi campi nel form. Riduci i campi del form.',
+          code: 'LIMIT_FIELD_COUNT'
+        } 
+      });
+    }
+
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel caricamento dell\'immagine',
+        code: error.code || 'UNKNOWN_ERROR',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      } 
+    });
   }
 });
 

@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, Eye, Share2, Facebook, Twitter, MessageCircle, Sho
 import axios from 'axios';
 import ComponentsList from '../components/ComponentsList';
 import SEO from '../components/SEO';
+import { ReplacementStats } from '../components/ReplacementBadge';
 import { formatDate, getCategoryLabel } from '../utils/format';
 import { parseMarkdown } from '../utils/markdown';
 import { motion } from 'framer-motion';
@@ -13,6 +14,7 @@ export default function BuildDetail() {
   const [build, setBuild] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [replacementStats, setReplacementStats] = useState(null);
 
   useEffect(() => {
     fetchBuild();
@@ -22,9 +24,29 @@ export default function BuildDetail() {
     try {
       setLoading(true);
       const response = await axios.get(`/api/builds/${slug}`);
-      setBuild(response.data.build);
+      console.log('Build API Response:', response.data); // Debug log
+      
+      if (response.data && response.data.build) {
+        setBuild(response.data.build);
+        
+        // Carica statistiche sostituzioni se disponibili
+        try {
+          const statsResponse = await axios.get(`/api/builds/${response.data.build.id}/replacement-stats`);
+          setReplacementStats(statsResponse.data.stats);
+        } catch (statsError) {
+          console.log('Statistiche sostituzioni non disponibili:', statsError.message);
+        }
+      } else {
+        console.error('Invalid build response structure:', response.data);
+        setError('Struttura dati non valida');
+      }
     } catch (error) {
       console.error('Error fetching build:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       setError(error.response?.data?.error?.message || 'Errore nel caricamento della build');
     } finally {
       setLoading(false);
@@ -256,6 +278,11 @@ export default function BuildDetail() {
             {/* Components List */}
             {build.components && build.components.length > 0 && (
               <div className="card glass-liquid glow-strong p-6 md:p-8">
+                {/* Statistiche sostituzioni */}
+                {replacementStats && (
+                  <ReplacementStats stats={replacementStats} />
+                )}
+                
                 <ComponentsList components={build.components} />
                 
                 {/* Compra Tutto Button */}

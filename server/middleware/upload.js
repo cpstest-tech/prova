@@ -53,10 +53,16 @@ const fileFilter = (req, file, cb) => {
 export const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024, // 5MB default
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024, // 50MB per AWS EC2 (era 20MB)
     files: 1, // Max 1 file per volta
-    fields: 10, // Max 10 campi
-    parts: 20 // Max 20 parti totali
+    fields: 100, // Max 100 campi (era 10)
+    parts: 100, // Max 100 parti totali (era 50)
+    fieldSize: 10 * 1024 * 1024, // 10MB per campo (nuovo)
+    headerPairs: 2000 // Max header pairs (nuovo)
   },
-  fileFilter: fileFilter
+  fileFilter: fileFilter,
+  onError: (err, next) => {
+    console.error('❌ Multer error:', err);
+    next(err);
+  }
 });

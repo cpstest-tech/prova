@@ -4,6 +4,16 @@ import { formatPrice, formatDate, getCategoryLabel } from '../utils/format';
 import { motion } from 'framer-motion';
 
 export default function BuildCard({ build }) {
+  // Gestione errori per build undefined
+  if (!build) {
+    console.error('BuildCard: build is undefined');
+    return (
+      <div className="card glass-card p-6 text-center">
+        <p className="text-gray-500">Errore nel caricamento della build</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       whileHover={{ y: -8, scale: 1.02 }}
