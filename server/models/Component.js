@@ -180,9 +180,9 @@ export class Component {
   static updateAvailability(id, isAvailable, lastChecked = null) {
     const stmt = db.prepare('UPDATE components SET is_available = ?, last_checked = ? WHERE id = ?');
     return stmt.run(
-      isAvailable !== undefined ? isAvailable : true, 
+      isAvailable === true ? 1 : 0, // Converte boolean in integer per SQLite
       lastChecked || new Date().toISOString(), 
-      id
+      parseInt(id)
     );
   }
 }
