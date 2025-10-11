@@ -3,7 +3,7 @@ import { Component } from '../models/Component.js';
 import { Build } from '../models/Build.js';
 import { checkAndReplaceComponents, regenerateAmazonCart, restoreOriginalComponent, getReplacementStats, checkAllBuilds } from '../utils/smartReplacer.js';
 import { checkComponentAvailability, checkMultipleComponentsAvailability } from '../utils/availabilityChecker.js';
-import { findAlternativeByQuery, validateSearchQuery, suggestSearchQueries, searchAmazonProducts } from '../utils/alternativeFinder.js';
+import { findAlternativeByQuery, validateSearchQuery, suggestSearchQueries, searchAmazonProductsWithPAAPI } from '../utils/alternativeFinder.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -170,7 +170,7 @@ router.post('/components/:id/test-search', authenticateToken, async (req, res) =
     }
     
     // Testa la ricerca
-    const results = await searchAmazonProducts(searchQuery, component.type);
+    const results = await searchAmazonProductsWithPAAPI(searchQuery, component.type);
     
     res.json({
       success: true,
