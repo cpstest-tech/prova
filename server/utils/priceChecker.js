@@ -190,6 +190,26 @@ export class PriceChecker {
             });
           }
 
+          // Validazione prezzo ragionevole - range dinamico per tipo componente
+          const url = window.location.href;
+          const isGPU = url.includes('graphics') || url.includes('gpu') || url.includes('video-card') || 
+                       url.includes('rtx') || url.includes('gtx') || url.includes('radeon');
+          const isHighEnd = url.includes('4090') || url.includes('4080') || url.includes('3090') || 
+                           url.includes('7900') || url.includes('6900');
+          
+          // Range di prezzo dinamico
+          let minPrice = 5;
+          let maxPrice = 500;
+          
+          if (isGPU) {
+            minPrice = 50;
+            maxPrice = 1500; // GPU possono costare fino a €1500
+          }
+          if (isHighEnd) {
+            minPrice = 100;
+            maxPrice = 2000; // GPU high-end possono costare fino a €2000
+          }
+
           // Estrai prezzo - ordine di priorità per Amazon Italia, ma solo dalla variante selezionata
           const priceSelectors = [
             '.a-price.a-text-price .a-offscreen', // Prezzo principale barrato (sconto)
@@ -212,26 +232,6 @@ export class PriceChecker {
               // Pulisci il testo del prezzo
               const cleanPriceText = priceText.replace(/[^\d,.]/g, '');
               const price = parseFloat(cleanPriceText.replace(',', '.'));
-              
-              // Validazione prezzo ragionevole - range dinamico per tipo componente
-              const url = window.location.href;
-              const isGPU = url.includes('graphics') || url.includes('gpu') || url.includes('video-card') || 
-                           url.includes('rtx') || url.includes('gtx') || url.includes('radeon');
-              const isHighEnd = url.includes('4090') || url.includes('4080') || url.includes('3090') || 
-                               url.includes('7900') || url.includes('6900');
-              
-              // Range di prezzo dinamico
-              let minPrice = 5;
-              let maxPrice = 500;
-              
-              if (isGPU) {
-                minPrice = 50;
-                maxPrice = 1500; // GPU possono costare fino a €1500
-              }
-              if (isHighEnd) {
-                minPrice = 100;
-                maxPrice = 2000; // GPU high-end possono costare fino a €2000
-              }
               
               if (price > minPrice && price < maxPrice) {
                 // Controlla se non è un prezzo di venditore terzo (spesso molto alto)
