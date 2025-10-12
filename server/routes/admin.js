@@ -894,6 +894,17 @@ router.post('/builds/:id/smart-replacement', async (req, res) => {
           const fallback = await ComponentAlternatives.handlePriceFallback(component);
           
           if (fallback) {
+            // Applica la sostituzione nel database
+            Component.update(component.id, {
+              name: fallback.name,
+              amazon_link: fallback.url || `https://www.amazon.it/dp/${fallback.asin}`,
+              price: fallback.price,
+              asin: fallback.asin,
+              specs: `${component.specs || ''}\n\n[SOSTITUZIONE INTELLIGENTE] Sostituito automaticamente da ${component.name}`.trim()
+            });
+            
+            console.log(`✅ Sostituito nel database: ${component.name} → ${fallback.name}`);
+            
             results.push({
               componentId: component.id,
               componentName: component.name,
@@ -919,8 +930,8 @@ router.post('/builds/:id/smart-replacement', async (req, res) => {
           }
         }
 
-        // Delay tra verifiche
-        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+        // Delay tra verifiche per evitare detection
+        await new Promise(resolve => setTimeout(resolve, 15000 + Math.random() * 15000)); // 15-30 secondi
         
       } catch (error) {
         console.error(`❌ Errore verifica ${component.name}:`, error.message);
