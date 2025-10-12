@@ -14,6 +14,7 @@ import Dashboard from './pages/admin/Dashboard';
 import BuildsList from './pages/admin/BuildsList';
 import BuildEditor from './pages/admin/BuildEditor';
 import ChangePassword from './pages/admin/ChangePassword';
+import AlternativesManager from './pages/admin/AlternativesManager';
 
 // Components
 import Layout from './components/Layout';
@@ -50,6 +51,7 @@ function App() {
             <Route path="builds" element={<BuildsList />} />
             <Route path="builds/new" element={<BuildEditor />} />
             <Route path="builds/edit/:id" element={<BuildEditor />} />
+            <Route path="alternatives" element={<AlternativesManager />} />
             <Route path="change-password" element={<ChangePassword />} />
           </Route>
 

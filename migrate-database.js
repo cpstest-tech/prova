@@ -52,6 +52,10 @@ async function main() {
     addColumnIfNotExists('components', 'price_updated_at', 'DATETIME');
     addColumnIfNotExists('components', 'price_cache_expires_at', 'DATETIME');
     addColumnIfNotExists('components', 'tier', 'TEXT DEFAULT "C"');
+
+    // Aggiungi colonne alla tabella component_alternatives
+    addColumnIfNotExists('component_alternatives', 'category_id', 'INTEGER');
+    addColumnIfNotExists('component_alternatives', 'is_active', 'BOOLEAN DEFAULT 1');
     
     console.log('\n📊 Creazione tabella price_cache...');
     createTableIfNotExists(`
@@ -67,16 +71,30 @@ async function main() {
       )
     `);
     
+    console.log('\n📊 Creazione tabella alternative_categories...');
+    createTableIfNotExists(`
+      CREATE TABLE IF NOT EXISTS alternative_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        component_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('\n📊 Creazione tabella component_alternatives...');
     createTableIfNotExists(`
       CREATE TABLE IF NOT EXISTS component_alternatives (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        original_asin TEXT NOT NULL,
+        category_id INTEGER,
+        original_asin TEXT,
         alternative_asin TEXT NOT NULL,
         alternative_name TEXT,
         alternative_price REAL,
         priority INTEGER DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES alternative_categories(id) ON DELETE CASCADE
       )
     `);
     
@@ -87,6 +105,9 @@ async function main() {
     createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_price_cache_asin ON price_cache(asin)');
     createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_price_cache_expires ON price_cache(expires_at)');
     createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_component_alternatives_original ON component_alternatives(original_asin)');
+    createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_component_alternatives_category ON component_alternatives(category_id)');
+    createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_component_alternatives_priority ON component_alternatives(priority)');
+    createIndexIfNotExists('CREATE INDEX IF NOT EXISTS idx_alternative_categories_type ON alternative_categories(component_type)');
     
     console.log('\n✅ Migrazione database completata con successo!');
     
@@ -94,10 +115,12 @@ async function main() {
     const componentCount = db.prepare('SELECT COUNT(*) as count FROM components').get();
     const priceCacheCount = db.prepare('SELECT COUNT(*) as count FROM price_cache').get();
     const alternativesCount = db.prepare('SELECT COUNT(*) as count FROM component_alternatives').get();
+    const categoriesCount = db.prepare('SELECT COUNT(*) as count FROM alternative_categories').get();
     
     console.log('\n📈 Statistiche database:');
     console.log(`  Componenti: ${componentCount.count}`);
     console.log(`  Cache prezzi: ${priceCacheCount.count}`);
+    console.log(`  Categorie alternative: ${categoriesCount.count}`);
     console.log(`  Alternative: ${alternativesCount.count}`);
     
   } catch (error) {

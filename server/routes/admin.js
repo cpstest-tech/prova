@@ -7,6 +7,7 @@ import { importFromAmazonCart } from '../utils/amazonParser.js';
 import { updatePricesForBuild, updatePricesForTier, autoAssignTiers } from '../utils/priceUpdater.js';
 import { getSchedulerStatus, runManualUpdate } from '../utils/priceScheduler.js';
 import ComponentAlternatives from '../utils/componentAlternatives.js';
+import { AlternativeCategory } from '../models/AlternativeCategory.js';
 import database from '../config/database.js';
 
 const router = express.Router();
@@ -468,6 +469,124 @@ router.put('/components/:id/tier', (req, res) => {
   }
 });
 
+// Gestione categorie alternative
+router.get('/alternative-categories', (req, res) => {
+  try {
+    const categories = AlternativeCategory.getAll();
+    const stats = AlternativeCategory.getStats();
+    res.json({ categories, stats });
+  } catch (error) {
+    console.error('Get alternative categories error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero delle categorie alternative' 
+      } 
+    });
+  }
+});
+
+router.get('/alternative-categories/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = AlternativeCategory.getWithAlternatives(id);
+    
+    if (!category) {
+      return res.status(404).json({ error: { message: 'Categoria non trovata' } });
+    }
+    
+    res.json({ category });
+  } catch (error) {
+    console.error('Get alternative category error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero della categoria' 
+      } 
+    });
+  }
+});
+
+router.post('/alternative-categories', (req, res) => {
+  try {
+    const { name, description, component_type } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ 
+        error: { message: 'Il nome della categoria è obbligatorio' } 
+      });
+    }
+
+    const result = AlternativeCategory.create({
+      name,
+      description,
+      component_type
+    });
+
+    res.json({
+      message: 'Categoria creata con successo',
+      id: result
+    });
+  } catch (error) {
+    console.error('Create alternative category error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nella creazione della categoria' 
+      } 
+    });
+  }
+});
+
+router.put('/alternative-categories/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, component_type } = req.body;
+
+    const category = AlternativeCategory.getById(id);
+    if (!category) {
+      return res.status(404).json({ error: { message: 'Categoria non trovata' } });
+    }
+
+    AlternativeCategory.update(id, {
+      name,
+      description,
+      component_type
+    });
+
+    res.json({
+      message: 'Categoria aggiornata con successo',
+      category: AlternativeCategory.getById(id)
+    });
+  } catch (error) {
+    console.error('Update alternative category error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento della categoria' 
+      } 
+    });
+  }
+});
+
+router.delete('/alternative-categories/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const category = AlternativeCategory.getById(id);
+    if (!category) {
+      return res.status(404).json({ error: { message: 'Categoria non trovata' } });
+    }
+
+    AlternativeCategory.delete(id);
+
+    res.json({ message: 'Categoria eliminata con successo' });
+  } catch (error) {
+    console.error('Delete alternative category error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'eliminazione della categoria' 
+      } 
+    });
+  }
+});
+
 // Gestione alternative componenti
 router.get('/alternatives', (req, res) => {
   try {
@@ -493,6 +612,82 @@ router.get('/alternatives/:asin', (req, res) => {
     res.status(500).json({ 
       error: { 
         message: 'Errore nel recupero delle alternative' 
+      } 
+    });
+  }
+});
+
+// Gestione alternative per categoria
+router.get('/alternative-categories/:id/alternatives', (req, res) => {
+  try {
+    const { id } = req.params;
+    const alternatives = ComponentAlternatives.getAlternativesByCategory(id);
+    res.json({ alternatives });
+  } catch (error) {
+    console.error('Get category alternatives error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero delle alternative della categoria' 
+      } 
+    });
+  }
+});
+
+router.post('/alternative-categories/:id/alternatives', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { alternativeAsin, alternativeName, alternativePrice, priority } = req.body;
+
+    if (!alternativeAsin || !alternativeName) {
+      return res.status(400).json({ 
+        error: { message: 'ASIN alternativa e nome sono obbligatori' } 
+      });
+    }
+
+    const result = await ComponentAlternatives.addAlternative(
+      null, // originalAsin non necessario per categorie
+      alternativeAsin,
+      alternativeName,
+      alternativePrice || null,
+      priority || 1,
+      id
+    );
+
+    res.json({
+      message: 'Alternativa aggiunta con successo alla categoria',
+      id: result
+    });
+  } catch (error) {
+    console.error('Add category alternative error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiunta dell\'alternativa alla categoria' 
+      } 
+    });
+  }
+});
+
+router.put('/alternatives/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { alternativeAsin, alternativeName, alternativePrice, priority, is_active } = req.body;
+
+    ComponentAlternatives.updateAlternative(id, {
+      alternative_asin: alternativeAsin,
+      alternative_name: alternativeName,
+      alternative_price: alternativePrice,
+      priority,
+      is_active
+    });
+
+    res.json({
+      message: 'Alternativa aggiornata con successo'
+    });
+  } catch (error) {
+    console.error('Update alternative error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento dell\'alternativa' 
       } 
     });
   }

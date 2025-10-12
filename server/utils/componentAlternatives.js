@@ -2,16 +2,16 @@ import db from '../config/database.js';
 import { fetchPrice } from './priceUpdater.js';
 
 class ComponentAlternatives {
-  static async addAlternative(originalAsin, alternativeAsin, alternativeName, alternativePrice, priority = 1) {
+  static async addAlternative(originalAsin, alternativeAsin, alternativeName, alternativePrice, priority = 1, categoryId = null) {
     try {
       const stmt = db.prepare(`
         INSERT INTO component_alternatives 
-        (original_asin, alternative_asin, alternative_name, alternative_price, priority)
-        VALUES (?, ?, ?, ?, ?)
+        (category_id, original_asin, alternative_asin, alternative_name, alternative_price, priority)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
       
-      const result = stmt.run(originalAsin, alternativeAsin, alternativeName, alternativePrice, priority);
-      console.log(`✅ Aggiunta alternativa ${alternativeAsin} per ${originalAsin}`);
+      const result = stmt.run(categoryId, originalAsin, alternativeAsin, alternativeName, alternativePrice, priority);
+      console.log(`✅ Aggiunta alternativa ${alternativeAsin} per ${originalAsin || 'categoria ' + categoryId}`);
       return result.lastInsertRowid;
     } catch (error) {
       console.error(`❌ Errore aggiunta alternativa per ${originalAsin}:`, error.message);
@@ -23,13 +23,63 @@ class ComponentAlternatives {
     try {
       const stmt = db.prepare(`
         SELECT * FROM component_alternatives 
-        WHERE original_asin = ? 
+        WHERE original_asin = ? AND is_active = 1
         ORDER BY priority ASC, alternative_price ASC
       `);
       return stmt.all(originalAsin);
     } catch (error) {
       console.error(`❌ Errore recupero alternative per ${originalAsin}:`, error.message);
       return [];
+    }
+  }
+
+  static getAlternativesByCategory(categoryId) {
+    try {
+      const stmt = db.prepare(`
+        SELECT * FROM component_alternatives 
+        WHERE category_id = ? AND is_active = 1
+        ORDER BY priority ASC, alternative_name ASC
+      `);
+      return stmt.all(categoryId);
+    } catch (error) {
+      console.error(`❌ Errore recupero alternative per categoria ${categoryId}:`, error.message);
+      return [];
+    }
+  }
+
+  static updateAlternative(id, data) {
+    try {
+      const fields = [];
+      const values = [];
+      
+      if (data.alternative_asin !== undefined) {
+        fields.push('alternative_asin = ?');
+        values.push(data.alternative_asin);
+      }
+      if (data.alternative_name !== undefined) {
+        fields.push('alternative_name = ?');
+        values.push(data.alternative_name);
+      }
+      if (data.alternative_price !== undefined) {
+        fields.push('alternative_price = ?');
+        values.push(data.alternative_price);
+      }
+      if (data.priority !== undefined) {
+        fields.push('priority = ?');
+        values.push(data.priority);
+      }
+      if (data.is_active !== undefined) {
+        fields.push('is_active = ?');
+        values.push(data.is_active);
+      }
+      
+      values.push(id);
+      
+      const stmt = db.prepare(`UPDATE component_alternatives SET ${fields.join(', ')} WHERE id = ?`);
+      return stmt.run(...values);
+    } catch (error) {
+      console.error(`❌ Errore aggiornamento alternativa ${id}:`, error.message);
+      throw error;
     }
   }
 

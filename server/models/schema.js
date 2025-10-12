@@ -92,16 +92,30 @@ export function initializeDatabase() {
     )
   `);
 
+  // Tabella categorie alternative
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alternative_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      component_type TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Tabella alternative componenti
   db.exec(`
     CREATE TABLE IF NOT EXISTS component_alternatives (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      original_asin TEXT NOT NULL,
+      category_id INTEGER,
+      original_asin TEXT,
       alternative_asin TEXT NOT NULL,
       alternative_name TEXT,
       alternative_price REAL,
       priority INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      is_active BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES alternative_categories(id) ON DELETE CASCADE
     )
   `);
 
@@ -130,6 +144,9 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_price_cache_asin ON price_cache(asin);
     CREATE INDEX IF NOT EXISTS idx_price_cache_expires ON price_cache(expires_at);
     CREATE INDEX IF NOT EXISTS idx_component_alternatives_original ON component_alternatives(original_asin);
+    CREATE INDEX IF NOT EXISTS idx_component_alternatives_category ON component_alternatives(category_id);
+    CREATE INDEX IF NOT EXISTS idx_component_alternatives_priority ON component_alternatives(priority);
+    CREATE INDEX IF NOT EXISTS idx_alternative_categories_type ON alternative_categories(component_type);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON login_attempts(username);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at);
