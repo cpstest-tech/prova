@@ -68,39 +68,43 @@ export function initializeDatabase() {
       image_url TEXT,
       specs TEXT,
       position INTEGER DEFAULT 0,
-      searchterm TEXT,
-      original_price REAL,
-      is_substituted INTEGER DEFAULT 0,
-      substitution_reason TEXT,
-      original_asin TEXT,
-      last_price_check DATETIME,
+      asin TEXT,
+      price_source TEXT,
+      price_updated_at DATETIME,
+      price_cache_expires_at DATETIME,
+      tier TEXT DEFAULT 'C',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
     )
   `);
 
-  // Aggiungi colonne per sostituzione intelligente se non esistono
-  try {
-    const componentTableInfo = db.prepare("PRAGMA table_info(components)").all();
-    const columnsToAdd = [
-      { name: 'searchterm', type: 'TEXT' },
-      { name: 'original_price', type: 'REAL' },
-      { name: 'is_substituted', type: 'INTEGER DEFAULT 0' },
-      { name: 'substitution_reason', type: 'TEXT' },
-      { name: 'original_asin', type: 'TEXT' },
-      { name: 'last_price_check', type: 'DATETIME' }
-    ];
+  // Tabella cache prezzi
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS price_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asin TEXT UNIQUE NOT NULL,
+      price REAL,
+      source TEXT,
+      url TEXT,
+      last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    for (const column of columnsToAdd) {
-      const hasColumn = componentTableInfo.some(col => col.name === column.name);
-      if (!hasColumn) {
-        db.exec(`ALTER TABLE components ADD COLUMN ${column.name} ${column.type}`);
-        console.log(`✅ Colonna ${column.name} aggiunta alla tabella components`);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Errore nell\'aggiunta delle colonne per sostituzione:', error.message);
-  }
+  // Tabella alternative componenti
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS component_alternatives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_asin TEXT NOT NULL,
+      alternative_asin TEXT NOT NULL,
+      alternative_name TEXT,
+      alternative_price REAL,
+      priority INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
 
   // Tabella tentativi di login (security logging)
   db.exec(`
@@ -120,6 +124,12 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
     CREATE INDEX IF NOT EXISTS idx_builds_category ON builds(category);
     CREATE INDEX IF NOT EXISTS idx_components_build ON components(build_id);
+    CREATE INDEX IF NOT EXISTS idx_components_asin ON components(asin);
+    CREATE INDEX IF NOT EXISTS idx_components_tier ON components(tier);
+    CREATE INDEX IF NOT EXISTS idx_components_price_updated ON components(price_updated_at);
+    CREATE INDEX IF NOT EXISTS idx_price_cache_asin ON price_cache(asin);
+    CREATE INDEX IF NOT EXISTS idx_price_cache_expires ON price_cache(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_component_alternatives_original ON component_alternatives(original_asin);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON login_attempts(username);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at);

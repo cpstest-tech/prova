@@ -16,6 +16,9 @@ import seoRoutes from './routes/seo.js';
 // Database initialization
 import { initializeDatabase } from './models/schema.js';
 
+// Price scheduler
+import { startPriceScheduler } from './utils/priceScheduler.js';
+
 // Security middleware
 import { sanitizeBody, preventParameterPollution } from './middleware/security.js';
 
@@ -221,6 +224,14 @@ if (process.env.NODE_ENV !== 'test') {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server avviato su http://0.0.0.0:${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Avvia il sistema di aggiornamento prezzi
+  try {
+    startPriceScheduler();
+    console.log(`💰 Sistema aggiornamento prezzi avviato`);
+  } catch (error) {
+    console.error(`❌ Errore avvio sistema prezzi:`, error.message);
+  }
 });
 
 // Configurazione timeout del server per AWS EC2

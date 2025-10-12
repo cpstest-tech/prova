@@ -86,7 +86,6 @@ export default function BuildEditor() {
       price: '',
       amazon_link: '',
       specs: '',
-      searchterm: '',
       position: components.length,
     }]);
   };
@@ -533,19 +532,6 @@ export default function BuildEditor() {
                       />
                     </div>
 
-                    <div>
-                      <label className="label text-xs">Termine di Ricerca</label>
-                      <input
-                        type="text"
-                        value={component.searchterm || ''}
-                        onChange={(e) => handleComponentChange(index, 'searchterm', e.target.value)}
-                        className="input"
-                        placeholder="es. AMD Ryzen 5 5600 CPU"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Termine per trovare prodotti simili quando questo non è disponibile
-                      </p>
-                    </div>
 
                     <div className="md:col-span-2">
                       <label className="label text-xs">Specifiche</label>

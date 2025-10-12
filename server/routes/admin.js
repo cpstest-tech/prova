@@ -4,8 +4,9 @@ import { Component } from '../models/Component.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { importFromAmazonCart } from '../utils/amazonParser.js';
-import { ProductSubstitution } from '../utils/productSubstitution.js';
-import { PriceChecker } from '../utils/priceChecker.js';
+import { updatePricesForBuild, updatePricesForTier, autoAssignTiers } from '../utils/priceUpdater.js';
+import { getSchedulerStatus, runManualUpdate } from '../utils/priceScheduler.js';
+import ComponentAlternatives from '../utils/componentAlternatives.js';
 import database from '../config/database.js';
 
 const router = express.Router();
@@ -308,321 +309,275 @@ router.post('/import-amazon', async (req, res) => {
   }
 });
 
-// ========== ROUTE PER SOSTITUZIONE INTELLIGENTE ==========
-
-// Controlla e aggiorna tutti i prezzi
-router.post('/check-prices', async (req, res) => {
+// Aggiorna prezzi per una build specifica (Tier C on-demand)
+router.post('/builds/:id/update-prices', async (req, res) => {
   try {
-    const { buildId } = req.body;
-    
-    console.log(`🔄 Avvio controllo prezzi${buildId ? ` per build ${buildId}` : ' (tutte le build)'}`);
-    
-    const substitution = new ProductSubstitution();
-    
-    let result;
-    if (buildId) {
-      result = await substitution.checkAndUpdateBuild(buildId);
-    } else {
-      result = await substitution.checkAllPublishedBuilds();
-    }
-    
-    await substitution.cleanup();
-    
-    res.json({
-      message: 'Controllo prezzi completato',
-      result
-    });
-  } catch (error) {
-    console.error('Check prices error:', error);
-    res.status(500).json({
-      error: {
-        message: error.message || 'Errore nel controllo dei prezzi'
-      }
-    });
-  }
-});
+    const buildId = req.params.id;
+    const build = Build.getById(buildId);
 
-// Controlla un singolo componente
-router.post('/components/:id/check', async (req, res) => {
-  try {
-    const component = Component.getById(req.params.id);
-    
-    if (!component) {
-      return res.status(404).json({ error: { message: 'Componente non trovato' } });
-    }
-    
-    const substitution = new ProductSubstitution();
-    const result = await substitution.checkAndUpdateComponent(component);
-    await substitution.cleanup();
-    
-    res.json({
-      message: 'Controllo completato',
-      result
-    });
-  } catch (error) {
-    console.error('Check component error:', error);
-    res.status(500).json({
-      error: {
-        message: error.message || 'Errore nel controllo del componente'
-      }
-    });
-  }
-});
-
-// Trova manualmente un sostituto per un componente
-router.post('/components/:id/find-substitute', async (req, res) => {
-  try {
-    const component = Component.getById(req.params.id);
-    
-    if (!component) {
-      return res.status(404).json({ error: { message: 'Componente non trovato' } });
-    }
-    
-    if (!component.searchterm) {
-      return res.status(400).json({ 
-        error: { message: 'Searchterm mancante. Aggiungi un termine di ricerca al componente.' } 
-      });
-    }
-    
-    const { priceThreshold } = req.body;
-    const threshold = priceThreshold || 15;
-    
-    const substitution = new ProductSubstitution();
-    const substitute = await substitution.findSubstitute(component, threshold);
-    await substitution.cleanup();
-    
-    if (!substitute) {
-      return res.status(404).json({
-        error: { message: 'Nessun prodotto sostitutivo trovato nel range di prezzo specificato' }
-      });
-    }
-    
-    res.json({
-      message: 'Sostituto trovato',
-      substitute
-    });
-  } catch (error) {
-    console.error('Find substitute error:', error);
-    res.status(500).json({
-      error: {
-        message: error.message || 'Errore nella ricerca del sostituto'
-      }
-    });
-  }
-});
-
-// Applica manualmente una sostituzione
-router.post('/components/:id/substitute', async (req, res) => {
-  try {
-    const component = Component.getById(req.params.id);
-    
-    if (!component) {
-      return res.status(404).json({ error: { message: 'Componente non trovato' } });
-    }
-    
-    const { substitute, reason } = req.body;
-    
-    if (!substitute) {
-      return res.status(400).json({ error: { message: 'Dati del sostituto mancanti' } });
-    }
-    
-    // Aggiorna il componente
-    Component.update(req.params.id, {
-      name: substitute.name,
-      brand: substitute.brand,
-      model: substitute.model,
-      price: substitute.price,
-      amazon_link: substitute.amazon_link,
-      image_url: substitute.image_url || component.image_url,
-      specs: substitute.specs || component.specs,
-      is_substituted: 1,
-      substitution_reason: reason || 'Sostituzione manuale',
-      original_price: component.original_price || component.price,
-      last_price_check: new Date().toISOString()
-    });
-    
-    const updated = Component.getById(req.params.id);
-    
-    res.json({
-      message: 'Componente sostituito con successo',
-      component: updated
-    });
-  } catch (error) {
-    console.error('Substitute component error:', error);
-    res.status(500).json({
-      error: {
-        message: error.message || 'Errore nella sostituzione del componente'
-      }
-    });
-  }
-});
-
-// Ripristina prodotto originale
-router.post('/components/:id/restore', async (req, res) => {
-  try {
-    const substitution = new ProductSubstitution();
-    const result = await substitution.restoreOriginalProduct(req.params.id);
-    await substitution.cleanup();
-    
-    const component = Component.getById(req.params.id);
-    
-    res.json({
-      message: result ? 'Componente ripristinato con successo' : 'Errore nel ripristino',
-      success: result,
-      component
-    });
-  } catch (error) {
-    console.error('Restore component error:', error);
-    res.status(500).json({
-      error: {
-        message: error.message || 'Errore nel ripristino del componente'
-      }
-    });
-  }
-});
-
-// Ottieni statistiche sostituzioni
-router.get('/substitution-stats', (req, res) => {
-  try {
-    
-    const stats = {
-      totalComponents: database.prepare('SELECT COUNT(*) as count FROM components').get().count,
-      substitutedComponents: database.prepare('SELECT COUNT(*) as count FROM components WHERE is_substituted = 1').get().count,
-      totalBuilds: database.prepare('SELECT COUNT(*) as count FROM builds WHERE status = "published"').get().count,
-      buildsWithSubstitutions: database.prepare(`
-        SELECT COUNT(DISTINCT build_id) as count 
-        FROM components 
-        WHERE is_substituted = 1
-      `).get().count,
-      recentSubstitutions: database.prepare(`
-        SELECT COUNT(*) as count 
-        FROM components 
-        WHERE is_substituted = 1 AND last_price_check > datetime('now', '-7 days')
-      `).get().count
-    };
-    
-    res.json({ stats });
-  } catch (error) {
-    console.error('Substitution stats error:', error);
-    res.status(500).json({
-      error: {
-        message: 'Errore nel recupero delle statistiche'
-      }
-    });
-  }
-});
-
-// Aggiorna searchterm di un componente
-router.patch('/components/:id/searchterm', (req, res) => {
-  try {
-    const { searchterm } = req.body;
-    
-    const component = Component.getById(req.params.id);
-    if (!component) {
-      return res.status(404).json({ error: { message: 'Componente non trovato' } });
-    }
-    
-    Component.update(req.params.id, { searchterm });
-    
-    const updated = Component.getById(req.params.id);
-    
-    res.json({
-      message: 'Searchterm aggiornato',
-      component: updated
-    });
-  } catch (error) {
-    console.error('Update searchterm error:', error);
-    res.status(500).json({
-      error: {
-        message: 'Errore nell\'aggiornamento del searchterm'
-      }
-    });
-  }
-});
-
-// Genera carrello Amazon aggiornato con sostituzioni
-router.post('/builds/:id/generate-cart', (req, res) => {
-  try {
-    const build = Build.getById(req.params.id);
-    
     if (!build) {
       return res.status(404).json({ error: { message: 'Build non trovata' } });
     }
 
-    const components = Component.getByBuildId(build.id);
-    
-    if (components.length === 0) {
-      return res.status(400).json({ error: { message: 'Nessun componente trovato nella build' } });
-    }
+    console.log(`Aggiornamento prezzi richiesto per build ${buildId}`);
 
-    // Estrai ASIN dai componenti (inclusi quelli sostituiti)
-    const asins = [];
-    const substitutions = [];
-    
-    components.forEach((component, index) => {
-      if (component.amazon_link) {
-        const asin = component.amazon_link.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
-        if (asin) {
-          const asinCode = asin[1] || asin[2] || asin[3];
-          asins.push({
-            asin: asinCode,
-            component: component.name,
-            price: component.price,
-            isSubstituted: component.is_substituted === 1,
-            substitutionReason: component.substitution_reason
-          });
-          
-          if (component.is_substituted === 1) {
-            substitutions.push({
-              original: component.name,
-              reason: component.substitution_reason,
-              price: component.price
-            });
-          }
-        }
-      }
-    });
-
-    if (asins.length === 0) {
-      return res.status(400).json({ error: { message: 'Nessun link Amazon valido trovato' } });
-    }
-
-    // Genera URL carrello Amazon
-    const baseUrl = 'https://www.amazon.it/gp/aws/cart/add.html';
-    const affiliateTag = build.affiliate_tag || 'cpstest05-21';
-    
-    const params = new URLSearchParams();
-    params.append('AssociateTag', affiliateTag);
-    
-    asins.forEach((item, index) => {
-      params.append(`ASIN.${index + 1}`, item.asin);
-      params.append(`Quantity.${index + 1}`, '1');
-    });
-
-    const cartUrl = `${baseUrl}?${params.toString()}`;
+    const results = await updatePricesForBuild(buildId);
 
     res.json({
-      cartUrl,
-      affiliateTag,
-      totalComponents: asins.length,
-      substitutions: substitutions.length > 0 ? substitutions : null,
-      components: asins.map(item => ({
-        name: item.component,
-        asin: item.asin,
-        price: item.price,
-        isSubstituted: item.isSubstituted,
-        reason: item.substitutionReason
-      }))
-    });
-
-  } catch (error) {
-    console.error('Generate cart error:', error);
-    res.status(500).json({
-      error: {
-        message: 'Errore nella generazione del carrello'
+      message: `Aggiornamento prezzi completato per build ${buildId}`,
+      results,
+      summary: {
+        total: results.length,
+        success: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length
       }
+    });
+  } catch (error) {
+    console.error('Update build prices error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento dei prezzi della build' 
+      } 
     });
   }
 });
+
+// Aggiorna prezzi per tier specifico (manuale)
+router.post('/prices/update-tier/:tier', async (req, res) => {
+  try {
+    const { tier } = req.params;
+    
+    if (!['A', 'B'].includes(tier)) {
+      return res.status(400).json({ 
+        error: { message: 'Tier deve essere A o B per aggiornamenti manuali' } 
+      });
+    }
+
+    console.log(`Aggiornamento manuale prezzi Tier ${tier} richiesto`);
+
+    const results = await runManualUpdate(tier);
+
+    res.json({
+      message: `Aggiornamento manuale Tier ${tier} completato`,
+      results,
+      summary: {
+        total: results.length,
+        success: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length
+      }
+    });
+  } catch (error) {
+    console.error('Update tier prices error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento dei prezzi del tier' 
+      } 
+    });
+  }
+});
+
+// Assegna automaticamente i tier ai componenti
+router.post('/components/assign-tiers', async (req, res) => {
+  try {
+    console.log('Assegnazione automatica tier richiesta');
+
+    const assigned = autoAssignTiers();
+
+    res.json({
+      message: `Assegnazione automatica tier completata`,
+      assigned
+    });
+  } catch (error) {
+    console.error('Assign tiers error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'assegnazione automatica dei tier' 
+      } 
+    });
+  }
+});
+
+// Statistiche sistema prezzi
+router.get('/prices/stats', (req, res) => {
+  try {
+    const stats = database.prepare(`
+      SELECT 
+        tier,
+        COUNT(*) as total,
+        COUNT(CASE WHEN asin IS NOT NULL THEN 1 END) as with_asin,
+        COUNT(CASE WHEN price IS NOT NULL THEN 1 END) as with_price,
+        COUNT(CASE WHEN price_updated_at IS NOT NULL THEN 1 END) as updated
+      FROM components 
+      GROUP BY tier
+    `).all();
+
+    const cacheStats = database.prepare(`
+      SELECT 
+        COUNT(*) as total_cached,
+        COUNT(CASE WHEN expires_at > ? THEN 1 END) as valid_cache
+      FROM price_cache
+    `).get(new Date().toISOString());
+
+    const schedulerStatus = getSchedulerStatus();
+
+    res.json({
+      componentStats: stats,
+      cacheStats,
+      scheduler: schedulerStatus
+    });
+  } catch (error) {
+    console.error('Price stats error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero delle statistiche prezzi' 
+      } 
+    });
+  }
+});
+
+// Aggiorna tier di un componente specifico
+router.put('/components/:id/tier', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tier } = req.body;
+
+    if (!['A', 'B', 'C'].includes(tier)) {
+      return res.status(400).json({ 
+        error: { message: 'Tier deve essere A, B o C' } 
+      });
+    }
+
+    const component = Component.getById(id);
+    if (!component) {
+      return res.status(404).json({ error: { message: 'Componente non trovato' } });
+    }
+
+    Component.setTier(id, tier);
+
+    res.json({
+      message: `Tier del componente aggiornato a ${tier}`,
+      component: Component.getById(id)
+    });
+  } catch (error) {
+    console.error('Update component tier error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento del tier del componente' 
+      } 
+    });
+  }
+});
+
+// Gestione alternative componenti
+router.get('/alternatives', (req, res) => {
+  try {
+    const stats = ComponentAlternatives.getStats();
+    res.json({ stats });
+  } catch (error) {
+    console.error('Get alternatives stats error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero delle statistiche alternative' 
+      } 
+    });
+  }
+});
+
+router.get('/alternatives/:asin', (req, res) => {
+  try {
+    const { asin } = req.params;
+    const alternatives = ComponentAlternatives.getAlternatives(asin);
+    res.json({ alternatives });
+  } catch (error) {
+    console.error('Get alternatives error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nel recupero delle alternative' 
+      } 
+    });
+  }
+});
+
+router.post('/alternatives', async (req, res) => {
+  try {
+    const { originalAsin, alternativeAsin, alternativeName, alternativePrice, priority } = req.body;
+
+    if (!originalAsin || !alternativeAsin || !alternativeName) {
+      return res.status(400).json({ 
+        error: { message: 'ASIN originale, ASIN alternativa e nome sono obbligatori' } 
+      });
+    }
+
+    const result = await ComponentAlternatives.addAlternative(
+      originalAsin,
+      alternativeAsin,
+      alternativeName,
+      alternativePrice || null,
+      priority || 1
+    );
+
+    res.json({
+      message: 'Alternativa aggiunta con successo',
+      id: result
+    });
+  } catch (error) {
+    console.error('Add alternative error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiunta dell\'alternativa' 
+      } 
+    });
+  }
+});
+
+router.delete('/alternatives/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ComponentAlternatives.removeAlternative(id);
+    res.json({ message: 'Alternativa rimossa con successo' });
+  } catch (error) {
+    console.error('Remove alternative error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nella rimozione dell\'alternativa' 
+      } 
+    });
+  }
+});
+
+router.post('/alternatives/initialize', async (req, res) => {
+  try {
+    const added = await ComponentAlternatives.initializeDefaultAlternatives();
+    res.json({
+      message: `Inizializzate ${added} alternative predefinite`,
+      added
+    });
+  } catch (error) {
+    console.error('Initialize alternatives error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'inizializzazione delle alternative' 
+      } 
+    });
+  }
+});
+
+router.post('/alternatives/update-prices', async (req, res) => {
+  try {
+    const updated = await ComponentAlternatives.updateAllAlternativePrices();
+    res.json({
+      message: `Aggiornati ${updated} prezzi alternative`,
+      updated
+    });
+  } catch (error) {
+    console.error('Update alternative prices error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'aggiornamento dei prezzi delle alternative' 
+      } 
+    });
+  }
+});
+
 
 export default router;
