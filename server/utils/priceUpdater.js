@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
 import axios from "axios";
-import { load } from "cheerio";
 import UserAgent from "user-agents";
 import { fetchProductByASIN } from "./amazonParser.js";
 import ComponentAlternatives from "./componentAlternatives.js";
@@ -63,61 +62,7 @@ async function httpGet(url) {
   }
 }
 
-// Keepa pubblica - fonte primaria
-async function fromKeepaPublic(asin) {
-  try {
-    console.log(`🔍 Keepa: cercando prezzo per ASIN ${asin}`);
-    const html = await httpGet(`https://keepa.com/#!product/1-${asin}`);
-    const $ = load(html);
-    
-    // Cerca pattern di prezzo in euro
-    const priceMatch = $.text().match(/([0-9]{1,3}(?:[.,][0-9]{2})?)\s*€/);
-    if (priceMatch) {
-      const price = parseFloat(priceMatch[1].replace(",", "."));
-      console.log(`✅ Keepa: trovato prezzo €${price} per ${asin}`);
-      return { 
-        price, 
-        source: "keepa_public",
-        url: `https://keepa.com/#!product/1-${asin}`
-      };
-    }
-    
-    console.log(`❌ Keepa: prezzo non trovato per ${asin}`);
-    return null;
-  } catch (error) {
-    console.error(`❌ Keepa error per ${asin}:`, error.message);
-    return null;
-  }
-}
-
-// CamelCamelCamel - fallback secondario
-async function fromCamel(asin) {
-  try {
-    console.log(`🔍 CamelCamelCamel: cercando prezzo per ASIN ${asin}`);
-    const html = await httpGet(`https://it.camelcamelcamel.com/product/${asin}`);
-    const $ = load(html);
-    
-    // Cerca pattern di prezzo in euro
-    const priceMatch = $.text().match(/([0-9]{1,3}(?:[.,][0-9]{2})?)\s*€/);
-    if (priceMatch) {
-      const price = parseFloat(priceMatch[1].replace(",", "."));
-      console.log(`✅ CamelCamelCamel: trovato prezzo €${price} per ${asin}`);
-      return { 
-        price, 
-        source: "camelcamelcamel",
-        url: `https://it.camelcamelcamel.com/product/${asin}`
-      };
-    }
-    
-    console.log(`❌ CamelCamelCamel: prezzo non trovato per ${asin}`);
-    return null;
-  } catch (error) {
-    console.error(`❌ CamelCamelCamel error per ${asin}:`, error.message);
-    return null;
-  }
-}
-
-// Amazon parser custom - fallback finale
+// Amazon parser custom - unica fonte
 async function fromAmazonParser(asin) {
   try {
     console.log(`🔍 Amazon Parser: cercando prezzo per ASIN ${asin}`);
@@ -215,18 +160,11 @@ export async function fetchPrice(asin, forceRefresh = false) {
   
   console.log(`🌐 Cache miss o refresh forzato per ${asin}, richiesta esterna...`);
   
-  // Sequenza di fallback: Keepa → CamelCamelCamel → Amazon Parser
-  let result = await fromKeepaPublic(asin);
+  // Usa solo Amazon Parser con delay per evitare detection
+  console.log(`⏳ Attesa delay anti-detection...`);
+  await sleep(8000 + Math.random() * 12000); // 8-20 secondi di attesa
   
-  if (!result) {
-    await sleep(5000 + Math.random() * 5000); // Delay più lungo tra fonti
-    result = await fromCamel(asin);
-  }
-  
-  if (!result) {
-    await sleep(5000 + Math.random() * 5000); // Delay più lungo tra fonti
-    result = await fromAmazonParser(asin);
-  }
+  let result = await fromAmazonParser(asin);
   
   // Prepara risultato finale
   let finalResult = {
@@ -317,7 +255,7 @@ export async function updatePricesForTier(tier, maxHours = 24) {
       }
       
       // Delay tra richieste per evitare rate limiting
-      await sleep(2000 + Math.random() * 3000);
+      await sleep(15000 + Math.random() * 15000); // 15-30 secondi tra componenti
       
     } catch (error) {
       console.error(`❌ Errore aggiornamento ${component.name}:`, error.message);
@@ -411,7 +349,7 @@ export async function updatePricesForBuild(buildId) {
       }
       
       // Delay tra richieste
-      await sleep(2000 + Math.random() * 3000);
+      await sleep(15000 + Math.random() * 15000); // 15-30 secondi tra componenti
       
     } catch (error) {
       console.error(`❌ Errore aggiornamento ${component.name}:`, error.message);
