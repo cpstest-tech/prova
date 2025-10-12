@@ -304,7 +304,7 @@ export class PriceChecker {
 
       return productData;
     
-  } catch (error) {
+    } catch (error) {
       console.error(`❌ Errore nel controllo prezzo per ${amazonLink}:`, error.message);
       return {
         available: false,
@@ -315,10 +315,10 @@ export class PriceChecker {
         asin: '',
         error: error.message
       };
+    }
   }
-}
 
-/**
+  /**
    * Cerca prodotti alternativi su Amazon
    */
   async searchAlternativeProducts(searchTerm, maxPrice, minPrice = 0) {

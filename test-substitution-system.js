@@ -39,7 +39,7 @@ async function testPriceChecker() {
   } catch (error) {
     console.error('❌ Errore nel test PriceChecker:', error.message);
   } finally {
-    await priceChecker.cleanup();
+    await priceChecker.close();
   }
 }
 
@@ -104,8 +104,16 @@ async function testDatabaseSchema() {
     // Test inserimento componente con nuovi campi
     console.log('\n🔍 Test inserimento componente con sostituzione...');
     
+    // Prima verifica se esiste una build valida
+    const existingBuild = database.prepare('SELECT id FROM builds LIMIT 1').get();
+    
+    if (!existingBuild) {
+      console.log('⚠️ Nessuna build trovata nel database, salto test inserimento');
+      return;
+    }
+    
     const testComponent = {
-      build_id: 1,
+      build_id: existingBuild.id,
       type: 'CPU',
       name: 'Test CPU',
       brand: 'AMD',
