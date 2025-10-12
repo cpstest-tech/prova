@@ -79,12 +79,30 @@ export async function fetchProductByASIN(asin, domain = 'amazon.it', affiliateTa
                   $('h1.a-size-large').first().text().trim() ||
                   $('span#productTitle').text().trim();
     
-    // Verifica disponibilità del prodotto
-    const isAvailable = !$('#availability .a-color-price').text().toLowerCase().includes('non disponibile') &&
-                       !$('#availability .a-color-success').text().toLowerCase().includes('non disponibile') &&
-                       !$('#outOfStock').length &&
-                       !$('.a-color-price').text().toLowerCase().includes('non disponibile') &&
-                       !$('.a-color-success').text().toLowerCase().includes('non disponibile');
+    // Verifica disponibilità del prodotto con controlli più rigorosi
+    const availabilityText = $('#availability .a-color-price, #availability .a-color-success, .a-color-price, .a-color-success').text().toLowerCase();
+    const outOfStockElements = $('#outOfStock, .a-color-price, .a-color-success').length;
+    const hasUnavailableText = availabilityText.includes('non disponibile') || 
+                               availabilityText.includes('currently unavailable') ||
+                               availabilityText.includes('temporaneamente esaurito') ||
+                               availabilityText.includes('out of stock');
+    
+    // Verifica se ci sono opzioni di acquisto disponibili
+    const hasBuyingOptions = $('.a-button-primary[data-action="show-all-offers-display"], .a-button-primary[data-action="show-all-offers-display"]').length > 0;
+    const hasAddToCart = $('input[name="submit.add-to-cart"], #add-to-cart-button').length > 0;
+    
+    // Il prodotto è disponibile solo se non ha testi di indisponibilità E ha opzioni di acquisto
+    let isAvailable = !hasUnavailableText && 
+                     !$('#outOfStock').length && 
+                     (hasAddToCart || !hasBuyingOptions) &&
+                     !availabilityText.includes('vedi altre opzioni di acquisto');
+    
+    console.log(`🔍 Debug disponibilità per ${asin}:`);
+    console.log(`   Testo disponibilità: "${availabilityText}"`);
+    console.log(`   Ha testo non disponibile: ${hasUnavailableText}`);
+    console.log(`   Ha opzioni di acquisto: ${hasBuyingOptions}`);
+    console.log(`   Ha add to cart: ${hasAddToCart}`);
+    console.log(`   Risultato finale: ${isAvailable ? 'DISPONIBILE' : 'NON DISPONIBILE'}`);
 
     // Prova diversi selettori per il prezzo - solo se disponibile
     let priceText = '';
@@ -104,10 +122,26 @@ export async function fetchProductByASIN(asin, domain = 'amazon.it', affiliateTa
         priceText = priceText.replace(/[€\s.]/g, '').replace(',', '.');
         price = parseFloat(priceText);
         
-        // Verifica che il prezzo sia ragionevole (non troppo basso per essere un'alternativa)
-        if (price && price < 10) {
+        // Verifica che il prezzo sia ragionevole e non di un'alternativa
+        if (price && price < 20) {
           console.log(`⚠️ Prezzo sospetto (${price}€) - potrebbe essere di un'alternativa`);
-          price = null;
+          // Controlla se il prezzo corrisponde a un'alternativa nella pagina
+          const alternativePrices = [];
+          $('.a-price .a-offscreen').each((i, elem) => {
+            const altPrice = $(elem).text().trim();
+            if (altPrice) {
+              const cleanPrice = parseFloat(altPrice.replace(/[€\s.]/g, '').replace(',', '.'));
+              if (cleanPrice && cleanPrice !== price) {
+                alternativePrices.push(cleanPrice);
+              }
+            }
+          });
+          
+          if (alternativePrices.includes(price)) {
+            console.log(`❌ Prezzo ${price}€ corrisponde a un'alternativa, prodotto principale non disponibile`);
+            price = null;
+            isAvailable = false;
+          }
         }
       }
     } else {
