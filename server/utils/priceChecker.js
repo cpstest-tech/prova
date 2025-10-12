@@ -329,8 +329,8 @@ export class PriceChecker {
           }
 
           // Estrai ASIN dall'URL
-          const url = window.location.href;
-          const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
+          const currentUrl = window.location.href;
+          const asinMatch = currentUrl.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
           if (asinMatch) {
             data.asin = asinMatch[1] || asinMatch[2] || asinMatch[3];
           }
