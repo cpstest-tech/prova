@@ -483,18 +483,18 @@ router.post('/components/:id/restore', async (req, res) => {
 // Ottieni statistiche sostituzioni
 router.get('/substitution-stats', (req, res) => {
   try {
-    const db = require('../config/database.js').default;
+    const database = require('../config/database.js').default;
     
     const stats = {
-      totalComponents: db.prepare('SELECT COUNT(*) as count FROM components').get().count,
-      substitutedComponents: db.prepare('SELECT COUNT(*) as count FROM components WHERE is_substituted = 1').get().count,
-      totalBuilds: db.prepare('SELECT COUNT(*) as count FROM builds WHERE status = "published"').get().count,
-      buildsWithSubstitutions: db.prepare(`
+      totalComponents: database.prepare('SELECT COUNT(*) as count FROM components').get().count,
+      substitutedComponents: database.prepare('SELECT COUNT(*) as count FROM components WHERE is_substituted = 1').get().count,
+      totalBuilds: database.prepare('SELECT COUNT(*) as count FROM builds WHERE status = "published"').get().count,
+      buildsWithSubstitutions: database.prepare(`
         SELECT COUNT(DISTINCT build_id) as count 
         FROM components 
         WHERE is_substituted = 1
       `).get().count,
-      recentSubstitutions: db.prepare(`
+      recentSubstitutions: database.prepare(`
         SELECT COUNT(*) as count 
         FROM components 
         WHERE is_substituted = 1 AND last_price_check > datetime('now', '-7 days')

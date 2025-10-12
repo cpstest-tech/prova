@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import db from '../config/database.js';
+import database from '../config/database.js';
 import { ProductSubstitution } from '../utils/productSubstitution.js';
 
 /**
@@ -36,7 +36,7 @@ async function runScheduledCheck() {
     
     // Salva log nel database
     try {
-      db.exec(`
+      database.exec(`
         CREATE TABLE IF NOT EXISTS price_check_logs (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           updated INTEGER,
@@ -45,7 +45,7 @@ async function runScheduledCheck() {
         )
       `);
       
-      const stmt = db.prepare(`
+      const stmt = database.prepare(`
         INSERT INTO price_check_logs (updated, substituted)
         VALUES (?, ?)
       `);
@@ -86,7 +86,7 @@ cron.schedule('0 2 * * *', async () => {
   
   try {
     // Controlla solo build con molti componenti sostituiti
-    const criticalBuilds = db.prepare(`
+    const criticalBuilds = database.prepare(`
       SELECT b.id, b.title, COUNT(c.id) as substituted_count
       FROM builds b
       LEFT JOIN components c ON b.id = c.build_id AND c.is_substituted = 1

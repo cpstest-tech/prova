@@ -7,7 +7,7 @@
 
 import { ProductSubstitution } from './server/utils/productSubstitution.js';
 import { PriceChecker } from './server/utils/priceChecker.js';
-import db from './server/config/database.js';
+import database from './server/config/database.js';
 
 async function testPriceChecker() {
   console.log('\n🧪 TEST: PriceChecker');
@@ -91,7 +91,7 @@ async function testDatabaseSchema() {
   
   try {
     // Verifica che le colonne per la sostituzione esistano
-    const tableInfo = db.prepare("PRAGMA table_info(components)").all();
+    const tableInfo = database.prepare("PRAGMA table_info(components)").all();
     const requiredColumns = ['searchterm', 'original_price', 'is_substituted', 'substitution_reason', 'original_asin', 'last_price_check'];
     
     console.log('🔍 Verifica colonne database...');
@@ -122,7 +122,7 @@ async function testDatabaseSchema() {
       last_price_check: new Date().toISOString()
     };
     
-    const insertResult = db.prepare(`
+    const insertResult = database.prepare(`
       INSERT INTO components (
         build_id, type, name, brand, model, price, amazon_link, specs, position,
         searchterm, original_price, is_substituted, substitution_reason, original_asin, last_price_check
@@ -148,7 +148,7 @@ async function testDatabaseSchema() {
     console.log(`✅ Componente test inserito con ID: ${insertResult.lastInsertRowid}`);
     
     // Pulisci il componente di test
-    db.prepare('DELETE FROM components WHERE id = ?').run(insertResult.lastInsertRowid);
+    database.prepare('DELETE FROM components WHERE id = ?').run(insertResult.lastInsertRowid);
     console.log('🧹 Componente test rimosso');
     
   } catch (error) {
@@ -162,7 +162,7 @@ async function testAPIEndpoints() {
   
   try {
     // Test statistiche sostituzioni
-    const stats = db.prepare(`
+    const stats = database.prepare(`
       SELECT 
         COUNT(*) as totalComponents,
         COUNT(CASE WHEN is_substituted = 1 THEN 1 END) as substitutedComponents
@@ -174,7 +174,7 @@ async function testAPIEndpoints() {
     console.log(`   Componenti sostituiti: ${stats.substitutedComponents}`);
     
     // Test controllo build con sostituzioni
-    const buildsWithSubstitutions = db.prepare(`
+    const buildsWithSubstitutions = database.prepare(`
       SELECT b.id, b.title, COUNT(c.id) as substituted_count
       FROM builds b
       LEFT JOIN components c ON b.id = c.build_id AND c.is_substituted = 1

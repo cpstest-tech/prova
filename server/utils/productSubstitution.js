@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import database from '../config/database.js';
 import { PriceChecker } from './priceChecker.js';
 import { extractASINFromUrl } from './amazonParser.js';
 
@@ -85,7 +85,7 @@ export class ProductSubstitution {
       console.log(`🔍 Controllo build ${buildId}...`);
       
       // Ottieni tutti i componenti della build
-      const components = db.prepare('SELECT * FROM components WHERE build_id = ?').all(buildId);
+      const components = database.prepare('SELECT * FROM components WHERE build_id = ?').all(buildId);
       
       if (components.length === 0) {
         console.log(`⚠️ Nessun componente trovato per build ${buildId}`);
@@ -181,7 +181,7 @@ export class ProductSubstitution {
             }
           }
 
-          db.prepare(`
+          database.prepare(`
             UPDATE components 
             SET name = ?, price = ?, amazon_link = ?, image_url = ?, 
                 is_substituted = ?, substitution_reason = ?, original_asin = ?, last_price_check = ?
@@ -243,7 +243,7 @@ export class ProductSubstitution {
     try {
       console.log('🔍 Controllo tutte le build pubblicate...');
       
-      const builds = db.prepare(`
+      const builds = database.prepare(`
         SELECT id, title FROM builds 
         WHERE status = 'published' 
         ORDER BY updated_at DESC
@@ -273,7 +273,7 @@ export class ProductSubstitution {
    */
   async restoreOriginalProduct(componentId) {
     try {
-      const component = db.prepare('SELECT * FROM components WHERE id = ?').get(componentId);
+      const component = database.prepare('SELECT * FROM components WHERE id = ?').get(componentId);
       
       if (!component || !component.is_substituted) {
         throw new Error('Componente non trovato o non sostituito');
@@ -287,7 +287,7 @@ export class ProductSubstitution {
         last_price_check: new Date().toISOString()
       };
 
-      db.prepare(`
+      database.prepare(`
         UPDATE components 
         SET is_substituted = ?, substitution_reason = ?, last_price_check = ?
         WHERE id = ?
