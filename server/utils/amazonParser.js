@@ -91,17 +91,27 @@ export async function fetchProductByASIN(asin, domain = 'amazon.it', affiliateTa
     const hasBuyingOptions = $('.a-button-primary[data-action="show-all-offers-display"], .a-button-primary[data-action="show-all-offers-display"]').length > 0;
     const hasAddToCart = $('input[name="submit.add-to-cart"], #add-to-cart-button').length > 0;
     
-    // Il prodotto è disponibile solo se non ha testi di indisponibilità E ha opzioni di acquisto
+    // Controllo specifico per "No featured offers available"
+    const hasNoFeaturedOffers = $('.a-section.a-spacing-mini.a-color-secondary').text().toLowerCase().includes('no featured offers available') ||
+                                $('.a-section.a-spacing-mini.a-color-secondary').text().toLowerCase().includes('nessuna offerta in evidenza disponibile');
+    
+    // Il prodotto è disponibile solo se:
+    // 1. Non ha testi di indisponibilità
+    // 2. Ha un bottone "Add to Cart" (acquisto diretto)
+    // 3. NON ha solo "opzioni di acquisto" senza acquisto diretto
+    // 4. NON ha "No featured offers available"
     let isAvailable = !hasUnavailableText && 
                      !$('#outOfStock').length && 
-                     (hasAddToCart || !hasBuyingOptions) &&
-                     !availabilityText.includes('vedi altre opzioni di acquisto');
+                     hasAddToCart && // DEVE avere add to cart per essere disponibile
+                     !hasBuyingOptions && // NON deve avere solo "vedi altre opzioni"
+                     !hasNoFeaturedOffers; // NON deve avere "no featured offers"
     
     console.log(`🔍 Debug disponibilità per ${asin}:`);
     console.log(`   Testo disponibilità: "${availabilityText}"`);
     console.log(`   Ha testo non disponibile: ${hasUnavailableText}`);
     console.log(`   Ha opzioni di acquisto: ${hasBuyingOptions}`);
     console.log(`   Ha add to cart: ${hasAddToCart}`);
+    console.log(`   Ha "No featured offers": ${hasNoFeaturedOffers}`);
     console.log(`   Risultato finale: ${isAvailable ? 'DISPONIBILE' : 'NON DISPONIBILE'}`);
 
     // Prova diversi selettori per il prezzo - solo se disponibile
