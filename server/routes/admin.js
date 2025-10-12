@@ -6,6 +6,7 @@ import { upload } from '../middleware/upload.js';
 import { importFromAmazonCart } from '../utils/amazonParser.js';
 import { ProductSubstitution } from '../utils/productSubstitution.js';
 import { PriceChecker } from '../utils/priceChecker.js';
+import database from '../config/database.js';
 
 const router = express.Router();
 
@@ -483,7 +484,6 @@ router.post('/components/:id/restore', async (req, res) => {
 // Ottieni statistiche sostituzioni
 router.get('/substitution-stats', (req, res) => {
   try {
-    const database = require('../config/database.js').default;
     
     const stats = {
       totalComponents: database.prepare('SELECT COUNT(*) as count FROM components').get().count,
