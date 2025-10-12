@@ -68,12 +68,24 @@ async function fromAmazonParser(asin) {
     console.log(`🔍 Amazon Parser: cercando prezzo per ASIN ${asin}`);
     const product = await fetchProductByASIN(asin);
     
-    if (product.price) {
-      console.log(`✅ Amazon Parser: trovato prezzo €${product.price} per ${asin}`);
+    if (product.price && product.isAvailable) {
+      console.log(`✅ Amazon Parser: trovato prezzo €${product.price} per ${asin} (disponibile)`);
       return { 
         price: product.price, 
         source: "amazon_parser",
-        url: product.amazonLink
+        url: product.amazonLink,
+        isAvailable: true,
+        availabilityStatus: 'available'
+      };
+    } else if (product.price && !product.isAvailable) {
+      console.log(`⚠️ Amazon Parser: prezzo €${product.price} trovato per ${asin} ma prodotto non disponibile`);
+      return { 
+        price: product.price, 
+        source: "amazon_parser",
+        url: product.amazonLink,
+        isAvailable: false,
+        availabilityStatus: 'unavailable',
+        warning: 'Prezzo trovato ma prodotto non disponibile'
       };
     }
     
@@ -220,39 +232,44 @@ export async function updatePricesForTier(tier, maxHours = 24) {
   
   for (const component of components) {
     try {
-      console.log(`\n--- Aggiornando ${component.name} (${component.asin}) ---`);
-      
-      const priceData = await fetchPrice(component.asin);
-      
-      if (priceData.price) {
-        // Aggiorna il componente nel database
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        Component.updatePrice(component.asin, {
-          price: priceData.price,
-          source: priceData.source,
-          last_checked: priceData.last_checked,
-          expires_at: expiresAt
-        });
+        console.log(`\n--- Aggiornando ${component.name} (${component.asin}) ---`);
         
-        results.push({
-          asin: component.asin,
-          name: component.name,
-          price: priceData.price,
-          source: priceData.source,
-          success: true
-        });
+        const priceData = await fetchPrice(component.asin);
         
-        console.log(`✅ Aggiornato: ${component.name} → €${priceData.price} (${priceData.source})`);
-      } else {
-        results.push({
-          asin: component.asin,
-          name: component.name,
-          error: "Prezzo non trovato",
-          success: false
-        });
-        
-        console.log(`❌ Prezzo non trovato per: ${component.name}`);
-      }
+        if (priceData.price && priceData.isAvailable !== false) {
+          // Aggiorna il componente nel database solo se disponibile
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          Component.updatePrice(component.asin, {
+            price: priceData.price,
+            source: priceData.source,
+            last_checked: priceData.last_checked,
+            expires_at: expiresAt
+          });
+          
+          results.push({
+            asin: component.asin,
+            name: component.name,
+            price: priceData.price,
+            source: priceData.source,
+            isAvailable: priceData.isAvailable,
+            availabilityStatus: priceData.availabilityStatus,
+            success: true,
+            warning: priceData.warning
+          });
+          
+          console.log(`✅ Aggiornato: ${component.name} → €${priceData.price} (${priceData.source}) ${priceData.warning || ''}`);
+        } else {
+          results.push({
+            asin: component.asin,
+            name: component.name,
+            error: priceData.warning || "Prezzo non trovato o prodotto non disponibile",
+            success: false,
+            isAvailable: priceData.isAvailable,
+            availabilityStatus: priceData.availabilityStatus
+          });
+          
+          console.log(`❌ ${priceData.warning || 'Prezzo non trovato'} per: ${component.name}`);
+        }
       
       // Delay tra richieste per evitare rate limiting
       await sleep(15000 + Math.random() * 15000); // 15-30 secondi tra componenti
@@ -314,39 +331,44 @@ export async function updatePricesForBuild(buildId) {
   
   for (const component of components) {
     try {
-      console.log(`\n--- Aggiornando ${component.name} (${component.asin}) ---`);
-      
-      const priceData = await fetchPrice(component.asin, true); // Forza refresh
-      
-      if (priceData.price) {
-        // Aggiorna il componente nel database
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        Component.updatePrice(component.asin, {
-          price: priceData.price,
-          source: priceData.source,
-          last_checked: priceData.last_checked,
-          expires_at: expiresAt
-        });
+        console.log(`\n--- Aggiornando ${component.name} (${component.asin}) ---`);
         
-        results.push({
-          asin: component.asin,
-          name: component.name,
-          price: priceData.price,
-          source: priceData.source,
-          success: true
-        });
+        const priceData = await fetchPrice(component.asin, true); // Forza refresh
         
-        console.log(`✅ Aggiornato: ${component.name} → €${priceData.price} (${priceData.source})`);
-      } else {
-        results.push({
-          asin: component.asin,
-          name: component.name,
-          error: "Prezzo non trovato",
-          success: false
-        });
-        
-        console.log(`❌ Prezzo non trovato per: ${component.name}`);
-      }
+        if (priceData.price && priceData.isAvailable !== false) {
+          // Aggiorna il componente nel database solo se disponibile
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          Component.updatePrice(component.asin, {
+            price: priceData.price,
+            source: priceData.source,
+            last_checked: priceData.last_checked,
+            expires_at: expiresAt
+          });
+          
+          results.push({
+            asin: component.asin,
+            name: component.name,
+            price: priceData.price,
+            source: priceData.source,
+            isAvailable: priceData.isAvailable,
+            availabilityStatus: priceData.availabilityStatus,
+            success: true,
+            warning: priceData.warning
+          });
+          
+          console.log(`✅ Aggiornato: ${component.name} → €${priceData.price} (${priceData.source}) ${priceData.warning || ''}`);
+        } else {
+          results.push({
+            asin: component.asin,
+            name: component.name,
+            error: priceData.warning || "Prezzo non trovato o prodotto non disponibile",
+            success: false,
+            isAvailable: priceData.isAvailable,
+            availabilityStatus: priceData.availabilityStatus
+          });
+          
+          console.log(`❌ ${priceData.warning || 'Prezzo non trovato'} per: ${component.name}`);
+        }
       
       // Delay tra richieste
       await sleep(15000 + Math.random() * 15000); // 15-30 secondi tra componenti

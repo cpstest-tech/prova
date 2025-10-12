@@ -79,17 +79,39 @@ export async function fetchProductByASIN(asin, domain = 'amazon.it', affiliateTa
                   $('h1.a-size-large').first().text().trim() ||
                   $('span#productTitle').text().trim();
     
-    // Prova diversi selettori per il prezzo
-    let priceText = $('.a-price .a-offscreen').first().text().trim() ||
-                    $('#priceblock_ourprice').text().trim() ||
-                    $('#priceblock_dealprice').text().trim() ||
-                    $('.a-price-whole').first().text().trim();
-    
-    // Pulisci il prezzo e converti in numero
+    // Verifica disponibilità del prodotto
+    const isAvailable = !$('#availability .a-color-price').text().toLowerCase().includes('non disponibile') &&
+                       !$('#availability .a-color-success').text().toLowerCase().includes('non disponibile') &&
+                       !$('#outOfStock').length &&
+                       !$('.a-color-price').text().toLowerCase().includes('non disponibile') &&
+                       !$('.a-color-success').text().toLowerCase().includes('non disponibile');
+
+    // Prova diversi selettori per il prezzo - solo se disponibile
+    let priceText = '';
     let price = null;
-    if (priceText) {
-      priceText = priceText.replace(/[€\s.]/g, '').replace(',', '.');
-      price = parseFloat(priceText);
+    
+    if (isAvailable) {
+      // Cerca il prezzo principale del prodotto selezionato
+      priceText = $('.a-price.a-text-price.a-size-medium.apexPriceToPay .a-offscreen').first().text().trim() ||
+                  $('.a-price.a-text-price.a-size-base.apexPriceToPay .a-offscreen').first().text().trim() ||
+                  $('#apex_desktop .a-price .a-offscreen').first().text().trim() ||
+                  $('#priceblock_ourprice').text().trim() ||
+                  $('#priceblock_dealprice').text().trim() ||
+                  $('.a-price-whole').first().text().trim();
+      
+      // Pulisci il prezzo e converti in numero
+      if (priceText) {
+        priceText = priceText.replace(/[€\s.]/g, '').replace(',', '.');
+        price = parseFloat(priceText);
+        
+        // Verifica che il prezzo sia ragionevole (non troppo basso per essere un'alternativa)
+        if (price && price < 10) {
+          console.log(`⚠️ Prezzo sospetto (${price}€) - potrebbe essere di un'alternativa`);
+          price = null;
+        }
+      }
+    } else {
+      console.log(`❌ Prodotto non disponibile per ASIN ${asin}`);
     }
     
     // Estrai l'immagine principale
@@ -144,6 +166,8 @@ export async function fetchProductByASIN(asin, domain = 'amazon.it', affiliateTa
       imageUrl: imageUrl || null,
       specs: specs || '',
       amazonLink: amazonLink,
+      isAvailable: isAvailable,
+      availabilityStatus: isAvailable ? 'available' : 'unavailable'
     };
     
   } catch (error) {

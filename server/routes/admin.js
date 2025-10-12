@@ -878,7 +878,7 @@ router.post('/builds/:id/smart-replacement', async (req, res) => {
         const { fetchPrice } = await import('../utils/priceUpdater.js');
         const priceData = await fetchPrice(component.asin, true);
 
-        if (priceData.price && !priceData.isFallback) {
+        if (priceData.price && !priceData.isFallback && priceData.isAvailable !== false) {
           // Componente disponibile
           results.push({
             componentId: component.id,
@@ -887,7 +887,9 @@ router.post('/builds/:id/smart-replacement', async (req, res) => {
             status: 'available',
             price: priceData.price,
             source: priceData.source,
-            message: 'Componente disponibile'
+            isAvailable: priceData.isAvailable,
+            availabilityStatus: priceData.availabilityStatus,
+            message: priceData.warning || 'Componente disponibile'
           });
         } else {
           // Componente non disponibile, cerca alternativa
