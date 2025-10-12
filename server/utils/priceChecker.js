@@ -98,26 +98,48 @@ export class PriceChecker {
             data.available = true; // Assume disponibile se non trova indicatori
           }
 
-          // Estrai prezzo
+          // Estrai prezzo - ordine di priorità per Amazon Italia
           const priceSelectors = [
-            '.a-price-whole',
-            '.a-offscreen',
-            '.a-price .a-offscreen',
-            '#priceblock_dealprice',
-            '#priceblock_ourprice',
-            '.a-price-range .a-offscreen'
+            '.a-price.a-text-price .a-offscreen', // Prezzo principale barrato (sconto)
+            '.a-price .a-offscreen', // Prezzo principale
+            '#priceblock_dealprice', // Prezzo offerta
+            '#priceblock_ourprice', // Prezzo nostro
+            '.a-price-whole', // Prezzo senza decimali
+            '.a-price-range .a-offscreen' // Range prezzo
           ];
 
+          let foundValidPrice = false;
           for (const selector of priceSelectors) {
-            const priceElement = document.querySelector(selector);
-            if (priceElement) {
-              const priceText = priceElement.textContent.replace(/[^\d,.]/g, '');
-              const price = parseFloat(priceText.replace(',', '.'));
-              if (price > 0) {
-                data.price = price;
-                break;
+            const priceElements = document.querySelectorAll(selector);
+            for (const priceElement of priceElements) {
+              const priceText = priceElement.textContent.trim();
+              console.log(`🔍 Tentativo parsing prezzo: "${priceText}" con selector: ${selector}`);
+              
+              // Pulisci il testo del prezzo
+              const cleanPriceText = priceText.replace(/[^\d,.]/g, '');
+              const price = parseFloat(cleanPriceText.replace(',', '.'));
+              
+          // Validazione prezzo ragionevole (tra 1€ e 1000€ per componenti PC)
+              if (price > 1 && price < 1000) {
+                // Controlla se non è un prezzo di venditore terzo (spesso molto alto)
+                const elementText = priceElement.textContent.toLowerCase();
+                const isThirdParty = elementText.includes('spedito da') || 
+                                   elementText.includes('venduto da') ||
+                                   elementText.includes('seller');
+                
+                if (!isThirdParty) {
+                  data.price = price;
+                  console.log(`✅ Prezzo valido trovato: €${price} da selector: ${selector}`);
+                  foundValidPrice = true;
+                  break;
+                } else {
+                  console.log(`❌ Prezzo venditore terzo ignorato: €${price}`);
+                }
+          } else {
+                console.log(`❌ Prezzo non valido: €${price} (fuori range 1-1000€)`);
               }
             }
+            if (foundValidPrice) break;
           }
 
           // Estrai prezzo originale (se in sconto)
