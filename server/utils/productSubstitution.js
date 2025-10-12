@@ -21,8 +21,16 @@ export class ProductSubstitution {
       // Se non c'è searchterm, usa il nome del componente
       const searchTerm = component.searchterm || component.name;
       
-      // Calcola range di prezzo (tolleranza del 15%)
-      const originalPrice = component.original_price || component.price;
+      // Calcola range di prezzo (tolleranza del 15%) - usa SEMPRE il prezzo originale
+      let originalPrice = component.original_price || component.price;
+      
+      // Controllo di sicurezza: se il prezzo originale sembra assurdo, usa il prezzo attuale
+      if (originalPrice > 1000) {
+        console.log(`⚠️ Prezzo originale sembra assurdo (€${originalPrice}), uso prezzo attuale (€${component.price})`);
+        originalPrice = component.price;
+      }
+      
+      console.log(`🔍 Prezzo originale per range: €${originalPrice} (original_price: ${component.original_price}, price: ${component.price})`);
       const maxPrice = originalPrice * (1 + tolerancePercent / 100);
       const minPrice = Math.max(originalPrice * 0.5, 10); // Minimo 50% del prezzo originale o 10€
 
