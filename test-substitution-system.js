@@ -16,8 +16,8 @@ async function testPriceChecker() {
   const priceChecker = new PriceChecker();
   
   try {
-    // Test controllo prezzo di un prodotto Amazon
-    const testUrl = 'https://www.amazon.it/dp/B08N5WRWNW'; // Esempio CPU AMD
+    // Test controllo prezzo di un prodotto Amazon (ASIN reale)
+    const testUrl = 'https://www.amazon.it/dp/B07MWGKHR9'; // ASIN reale funzionante
     
     console.log(`🔍 Test controllo prezzo per: ${testUrl}`);
     const productData = await priceChecker.checkProductPrice(testUrl);
@@ -56,7 +56,7 @@ async function testProductSubstitution() {
       name: 'AMD Ryzen 5 5600',
       price: 150,
       original_price: 150,
-      amazon_link: 'https://www.amazon.it/dp/B08N5WRWNW',
+      amazon_link: 'https://www.amazon.it/dp/B07MWGKHR9',
       searchterm: 'AMD Ryzen 5 5600 CPU',
       is_substituted: 0
     };
