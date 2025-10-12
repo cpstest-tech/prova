@@ -10,12 +10,15 @@ import db from "../config/database.js";
 const CACHE_DIR = "./price_cache";
 await fs.mkdir(CACHE_DIR, { recursive: true });
 
-// User agents casuali per evitare ban
+// User agents casuali per evitare ban - aggiornati e più realistici
 const uaList = [
   (new UserAgent()).toString(),
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117 Safari/537.36"
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
 ];
 
 // Delay casuale tra richieste
@@ -29,10 +32,16 @@ async function httpGet(url) {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1"
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Cache-Control": "max-age=0",
+    "DNT": "1"
   };
   
-  await sleep(500 + Math.random() * 1200);
+  // Delay più lungo per evitare detection
+  await sleep(2000 + Math.random() * 3000);
   
   try {
     const response = await axios.get(url, { 
@@ -43,6 +52,13 @@ async function httpGet(url) {
     return response.data;
   } catch (error) {
     console.error(`HTTP Error for ${url}:`, error.message);
+    
+    // Gestione specifica per rate limiting
+    if (error.response?.status === 403) {
+      console.log(`⚠️ Rate limiting rilevato per ${url}, aspetto più a lungo...`);
+      await sleep(10000 + Math.random() * 10000); // 10-20 secondi di attesa
+    }
+    
     throw error;
   }
 }
@@ -203,12 +219,12 @@ export async function fetchPrice(asin, forceRefresh = false) {
   let result = await fromKeepaPublic(asin);
   
   if (!result) {
-    await sleep(2000 + Math.random() * 3000); // Delay tra fonti
+    await sleep(5000 + Math.random() * 5000); // Delay più lungo tra fonti
     result = await fromCamel(asin);
   }
   
   if (!result) {
-    await sleep(2000 + Math.random() * 3000); // Delay tra fonti
+    await sleep(5000 + Math.random() * 5000); // Delay più lungo tra fonti
     result = await fromAmazonParser(asin);
   }
   
