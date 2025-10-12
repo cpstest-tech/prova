@@ -15,6 +15,7 @@ export class PriceChecker {
     if (!this.browser) {
       this.browser = await puppeteer.launch({
         headless: 'new',
+        executablePath: '/usr/bin/chromium-browser', // Forza l'uso di Chromium
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -23,7 +24,9 @@ export class PriceChecker {
           '--no-first-run',
           '--no-zygote',
           '--single-process',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
         ]
       });
     }
