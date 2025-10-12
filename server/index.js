@@ -212,14 +212,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize database before starting server
 initializeDatabase();
 
-// Avvia il controllo prezzi schedulato se non in modalità test
-if (process.env.NODE_ENV !== 'test') {
-  import('./scripts/scheduledPriceCheck.js').then(() => {
-    console.log('✅ Sistema di controllo prezzi schedulato avviato');
-  }).catch(error => {
-    console.error('❌ Errore nell\'avvio del controllo prezzi:', error);
-  });
-}
+// Il sistema di controllo prezzi è ora gestito dal PriceScheduler nel server.listen
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server avviato su http://0.0.0.0:${PORT}`);
