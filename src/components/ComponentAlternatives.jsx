@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit3, Save, X, DollarSign, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, X, DollarSign, ExternalLink, Layers } from 'lucide-react';
 import api from '../utils/api';
 
 export default function ComponentAlternatives({ component, onAlternativesChange }) {
@@ -7,6 +7,8 @@ export default function ComponentAlternatives({ component, onAlternativesChange 
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [alternativeCategories, setAlternativeCategories] = useState([]);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [newAlternative, setNewAlternative] = useState({
     alternative_asin: '',
     alternative_name: '',
@@ -18,7 +20,17 @@ export default function ComponentAlternatives({ component, onAlternativesChange 
     if (component?.amazon_link) {
       fetchAlternatives();
     }
+    fetchAlternativeCategories();
   }, [component]);
+
+  const fetchAlternativeCategories = async () => {
+    try {
+      const response = await api.get('/admin/alternative-categories');
+      setAlternativeCategories(response.data.categories || []);
+    } catch (error) {
+      console.error('Error fetching alternative categories:', error);
+    }
+  };
 
   const extractASINFromUrl = (url) => {
     if (!url) return null;
@@ -119,6 +131,56 @@ export default function ComponentAlternatives({ component, onAlternativesChange 
     }
   };
 
+  // Aggiungi gruppo di alternative
+  const handleAddGroup = async (categoryId) => {
+    const originalAsin = extractASINFromUrl(component.amazon_link);
+    if (!originalAsin) {
+      alert('Componente deve avere un link Amazon valido');
+      return;
+    }
+
+    try {
+      // Recupera le alternative della categoria
+      const response = await api.get(`/admin/alternative-categories/${categoryId}/alternatives`);
+      const categoryAlternatives = response.data.alternatives || [];
+
+      if (categoryAlternatives.length === 0) {
+        alert('Questa categoria non ha alternative disponibili');
+        return;
+      }
+
+      // Aggiungi tutte le alternative della categoria
+      let addedCount = 0;
+      for (const alt of categoryAlternatives) {
+        try {
+          await api.post('/admin/alternatives', {
+            originalAsin,
+            alternativeAsin: alt.alternative_asin,
+            alternativeName: alt.alternative_name,
+            alternativePrice: alt.alternative_price,
+            priority: alt.priority
+          });
+          addedCount++;
+        } catch (error) {
+          // Ignora errori per alternative già esistenti
+          console.log(`Alternativa ${alt.alternative_asin} già esistente`);
+        }
+      }
+
+      fetchAlternatives();
+      setShowGroupMenu(false);
+      
+      if (onAlternativesChange) {
+        onAlternativesChange();
+      }
+      
+      alert(`Gruppo aggiunto con successo! ${addedCount} alternative aggiunte.`);
+    } catch (error) {
+      console.error('Error adding group:', error);
+      alert(error.response?.data?.error?.message || 'Errore nell\'aggiunta del gruppo');
+    }
+  };
+
   if (!component?.amazon_link) {
     return (
       <div className="p-4 bg-gray-50 rounded-lg">
@@ -137,15 +199,80 @@ export default function ComponentAlternatives({ component, onAlternativesChange 
         <h4 className="font-semibold text-gray-900">
           Alternative per {component.name}
         </h4>
-        <button
-          type="button"
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary btn-sm inline-flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Aggiungi Alternativa
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowGroupMenu(true)}
+            className="btn-secondary btn-sm inline-flex items-center gap-2"
+            title="Aggiungi gruppo di alternative predefinite"
+          >
+            <Layers className="w-4 h-4" />
+            Aggiungi Gruppo
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(true)}
+            className="btn-primary btn-sm inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Aggiungi Alternativa
+          </button>
+        </div>
       </div>
+
+      {/* Menu selezione gruppo alternative */}
+      {showGroupMenu && (
+        <div className="p-4 border border-gray-200 rounded-lg bg-blue-50 space-y-3">
+          <h5 className="font-medium text-blue-900">Seleziona Gruppo di Alternative</h5>
+          <p className="text-sm text-blue-700">
+            Scegli un gruppo predefinito per aggiungere automaticamente tutte le alternative della categoria
+          </p>
+          
+          {alternativeCategories.length === 0 ? (
+            <div className="text-center py-4">
+              <p className="text-gray-500 text-sm">Nessuna categoria alternativa disponibile</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Crea prima delle categorie alternative nella sezione admin
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {alternativeCategories.map((category) => (
+                <div
+                  key={category.id}
+                  className="p-3 border border-blue-200 rounded-lg bg-white hover:bg-blue-50 cursor-pointer transition"
+                  onClick={() => handleAddGroup(category.id)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h6 className="font-medium text-gray-900">{category.name}</h6>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      {category.component_type || 'Generico'}
+                    </span>
+                  </div>
+                  {category.description && (
+                    <p className="text-sm text-gray-600 mb-2">{category.description}</p>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>ID: {category.id}</span>
+                    <span className="text-blue-600">Clicca per aggiungere gruppo</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowGroupMenu(false)}
+              className="btn-secondary btn-sm inline-flex items-center gap-2"
+            >
+              <X className="w-4 h-4" />
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAddForm && (
         <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
