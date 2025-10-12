@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "init-db": "node server/scripts/initDb.js",
+    "update-db": "node update-database.js",
     "update-security": "node server/scripts/updateSecurityDb.js",
     "test-substitution": "node test-substitution-system.js",
     "test-substitution-simple": "node test-substitution-simple.js",
