@@ -2,6 +2,17 @@ import axios from 'axios';
 import { load } from 'cheerio';
 
 /**
+ * Estrae ASIN da un URL di prodotto Amazon
+ * @param {string} url - URL del prodotto Amazon
+ * @returns {string|null} - ASIN del prodotto o null se non trovato
+ */
+export function extractASINFromUrl(url) {
+  if (!url) return null;
+  const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
+  return asinMatch ? (asinMatch[1] || asinMatch[2] || asinMatch[3]) : null;
+}
+
+/**
  * Estrae gli ASIN e l'affiliate tag da un URL di carrello Amazon
  * @param {string} cartUrl - URL del carrello Amazon
  * @returns {{asins: Array<{asin: string, quantity: number}>, affiliateTag: string|null}} - Oggetto con array di ASIN e affiliate tag
