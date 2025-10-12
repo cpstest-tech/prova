@@ -322,10 +322,39 @@ export async function updatePricesForTier(tier, maxHours = 24) {
 export async function updatePricesForBuild(buildId) {
   console.log(`\n🎯 Aggiornamento prezzi per Build ID: ${buildId}`);
   
-  const { Component } = await import("../models/Component.js");
-  const components = Component.getByBuildId(buildId).filter(c => c.asin);
+  // Verifica che la build esista
+  const { Build } = await import("../models/Build.js");
+  const build = Build.getById(buildId);
   
-  console.log(`📊 Trovati ${components.length} componenti con ASIN per la build ${buildId}`);
+  if (!build) {
+    console.log(`❌ Build ${buildId} non trovata`);
+    return [{
+      buildId,
+      error: "Build non trovata",
+      success: false
+    }];
+  }
+  
+  console.log(`✅ Build trovata: "${build.title}"`);
+  
+  const { Component } = await import("../models/Component.js");
+  const allComponents = Component.getByBuildId(buildId);
+  const components = allComponents.filter(c => c.asin && c.asin.trim() !== '');
+  
+  console.log(`📊 Componenti totali: ${allComponents.length}, con ASIN: ${components.length} per la build ${buildId}`);
+  
+  if (components.length === 0) {
+    console.log(`⚠️ Nessun componente con ASIN trovato per la build ${buildId}. Impossibile aggiornare i prezzi.`);
+    console.log(`💡 Suggerimento: Assicurati che i componenti abbiano ASIN validi per aggiornare i prezzi automaticamente.`);
+    
+    return [{
+      buildId,
+      message: `Nessun componente con ASIN trovato per la build "${build.title}"`,
+      totalComponents: allComponents.length,
+      componentsWithASIN: 0,
+      success: false
+    }];
+  }
   
   const results = [];
   

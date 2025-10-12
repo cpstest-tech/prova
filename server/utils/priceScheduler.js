@@ -124,11 +124,14 @@ class PriceScheduler {
     };
 
     for (const [name, job] of this.jobs) {
+      const nextDate = job.nextDate();
+      const lastDate = job.lastDate();
+      
       status.jobs.push({
         name,
         running: job.running,
-        nextDate: job.nextDate().toISOString(),
-        lastDate: job.lastDate()?.toISOString() || null
+        nextDate: nextDate ? (nextDate instanceof Date ? nextDate.toISOString() : new Date(nextDate).toISOString()) : null,
+        lastDate: lastDate ? (lastDate instanceof Date ? lastDate.toISOString() : new Date(lastDate).toISOString()) : null
       });
     }
 
@@ -139,7 +142,12 @@ class PriceScheduler {
     console.log('\n📅 Prossime esecuzioni programmate:');
     for (const [name, job] of this.jobs) {
       const nextDate = job.nextDate();
-      console.log(`  ${name}: ${nextDate.toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}`);
+      if (nextDate) {
+        const dateObj = nextDate instanceof Date ? nextDate : new Date(nextDate);
+        console.log(`  ${name}: ${dateObj.toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}`);
+      } else {
+        console.log(`  ${name}: Nessuna esecuzione programmata`);
+      }
     }
     console.log('');
   }
