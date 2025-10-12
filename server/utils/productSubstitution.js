@@ -203,7 +203,7 @@ export class ProductSubstitution {
         } else {
           console.log(`⚠️ Nessun sostituto trovato per ${component.name}, mantengo il prodotto originale`);
           // Aggiorna solo il timestamp dell'ultimo controllo
-          db.prepare('UPDATE components SET last_price_check = ? WHERE id = ?')
+          database.prepare('UPDATE components SET last_price_check = ? WHERE id = ?')
             .run(new Date().toISOString(), component.id);
           return { updated: false, substituted: false };
         }
@@ -217,7 +217,7 @@ export class ProductSubstitution {
         values.push(component.id);
         
         const query = `UPDATE components SET ${fields.map(f => `${f} = ?`).join(', ')} WHERE id = ?`;
-        db.prepare(query).run(...values);
+        database.prepare(query).run(...values);
         
         console.log(`📊 Componente ${component.id} aggiornato: €${updateData.price}`);
         return { updated: true, substituted: false };
