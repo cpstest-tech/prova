@@ -1,7 +1,6 @@
-import { ExternalLink, Package, ShoppingCart } from 'lucide-react';
+import { ExternalLink, Package, ShoppingCart, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatPrice, calculateTotal } from '../utils/format';
 import { motion } from 'framer-motion';
-import { SimpleReplacementBadge } from './ReplacementBadge';
 
 export default function ComponentsList({ components }) {
   // Gestione più robusta degli errori
@@ -87,17 +86,40 @@ export default function ComponentsList({ components }) {
                 <span className="uppercase tracking-wide">{component.type}</span>
               </div>
             </div>
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-bold card-title group-hover:text-violet-300 transition-colors">
-                {component.name}
-              </h3>
-              <SimpleReplacementBadge component={component} />
-            </div>
+            
+            {/* Segnalazione sostituzione */}
+            {component.is_substituted === 1 && (
+              <motion.div 
+                className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex items-center gap-2 justify-center text-amber-400 text-xs">
+                  <RefreshCw className="w-3 h-3" />
+                  <span className="font-semibold">Prodotto Sostituito</span>
+                </div>
+                {component.substitution_reason && (
+                  <p className="text-xs text-amber-300/80 mt-1">
+                    {component.substitution_reason}
+                  </p>
+                )}
+              </motion.div>
+            )}
+            
+            <h3 className="font-bold card-title mb-2 group-hover:text-violet-300 transition-colors">
+              {component.name}
+            </h3>
             {component.specs && (
               <p className="text-sm card-text leading-relaxed mb-4">{component.specs}</p>
             )}
             <div className="font-bold text-xl text-violet-300 mb-4">
               {formatPrice(component.price)}
+              {component.is_substituted === 1 && component.original_price && component.original_price !== component.price && (
+                <span className="text-xs text-gray-400 line-through ml-2">
+                  {formatPrice(component.original_price)}
+                </span>
+              )}
             </div>
             {component.amazon_link && (
               <motion.a

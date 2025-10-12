@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "init-db": "node server/scripts/initDb.js",
-    "update-security": "node server/scripts/updateSecurityDb.js"
+    "update-security": "node server/scripts/updateSecurityDb.js",
+    "test-substitution": "node test-substitution-system.js",
+    "check-prices": "node server/scripts/scheduledPriceCheck.js --run-now"
   },
   "keywords": [
     "cpstest",
@@ -44,7 +46,9 @@
     "lucide-react": "^0.303.0",
     "markdown-it": "^14.1.0",
     "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
     "paapi5-nodejs-sdk": "^1.1.0",
+    "puppeteer": "^21.11.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.1",

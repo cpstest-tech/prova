@@ -1,260 +1,271 @@
-# Sistema di Sostituzione Intelligente Componenti PC
+# Sistema di Sostituzione Intelligente
 
-## 🎯 Panoramica
+## Panoramica
 
-Il Sistema di Sostituzione Intelligente risolve automaticamente il problema dei componenti PC che vanno in esaurimento o cambiano prezzo, mantenendo i carrelli Amazon sempre funzionanti e aggiornati.
+Il sistema di sostituzione intelligente monitora automaticamente i prezzi e la disponibilità dei prodotti Amazon nei componenti delle build PC. Quando un prodotto non è più disponibile o il prezzo aumenta oltre il 15%, il sistema trova automaticamente un prodotto sostitutivo simile.
 
-## ✨ Caratteristiche Principali
+## Funzionalità Principali
 
-### 🔍 **Controllo Automatico Disponibilità**
-- Controlla la disponibilità dei componenti ogni 6 ore
-- Verifica prezzi e stock status su Amazon
-- Aggiorna automaticamente lo stato nel database
+### 🔍 Monitoraggio Prezzi
+- Controllo automatico ogni 6 ore dei prezzi Amazon
+- Controllo notturno per build critiche (con molti componenti sostituiti)
+- Scraping intelligente per evitare blocchi Amazon
 
-### 🔄 **Sostituzione Intelligente**
-- Cerca automaticamente alternative quando un prodotto è esaurito
-- Usa query di ricerca personalizzate per ogni componente
-- Valida la qualità delle sostituzioni (prezzo, categoria, rating)
+### 🔄 Sostituzione Intelligente
+- Ricerca automatica di prodotti alternativi
+- Limite di tolleranza del 15% sul prezzo
+- Mantiene compatibilità e specifiche simili
+- Salva il prodotto originale per ripristino manuale
 
-### 🛒 **Carrelli Amazon Sempre Aggiornati**
-- Rigenera automaticamente i link "Compra Tutto"
-- Mantiene l'affiliate tag corretto
-- Aggiorna i prezzi in tempo reale
+### 📊 Gestione Carrello
+- Generazione automatica di link carrello aggiornati
+- Include prodotti sostituiti con notifiche
+- Mantiene tag affiliati Amazon
 
-### 📊 **Interfaccia Trasparente**
-- Mostra badge per componenti sostituiti
-- Statistiche delle sostituzioni
-- Possibilità di ripristinare componenti originali
+### 🎯 Interfaccia Admin
+- Campo "Termine di Ricerca" per ogni componente
+- Controllo manuale di singoli componenti
+- Statistiche di sostituzione
+- Ripristino manuale di prodotti originali
 
-## 🏗️ Architettura del Sistema
+## Configurazione
 
-### Database Schema
-```sql
--- Nuove colonne aggiunte alla tabella components
-ALTER TABLE components ADD COLUMN search_query TEXT;
-ALTER TABLE components ADD COLUMN is_replacement BOOLEAN DEFAULT FALSE;
-ALTER TABLE components ADD COLUMN original_component_id INTEGER;
-ALTER TABLE components ADD COLUMN replacement_reason TEXT;
-ALTER TABLE components ADD COLUMN price_difference DECIMAL(10,2);
-ALTER TABLE components ADD COLUMN last_checked DATETIME;
-ALTER TABLE components ADD COLUMN is_available BOOLEAN DEFAULT TRUE;
-```
-
-### File Principali
-
-#### Backend
-- `server/utils/availabilityChecker.js` - Controllo disponibilità Amazon
-- `server/utils/alternativeFinder.js` - Ricerca alternative automatiche
-- `server/utils/smartReplacer.js` - Logica sostituzione componenti
-- `server/routes/availability.js` - API endpoints
-- `server/scripts/updateAvailability.js` - Job schedulato
-- `server/config/replacement.js` - Configurazione sistema
-
-#### Frontend
-- `src/components/ReplacementBadge.jsx` - UI componenti sostituiti
-- `src/pages/admin/BuildEditor.jsx` - Campo ricerca alternative
-- `src/components/ComponentsList.jsx` - Badge sostituzioni
-- `src/pages/BuildDetail.jsx` - Statistiche sostituzioni
-
-## 🚀 Come Usare il Sistema
-
-### 1. **Configurazione Componenti**
-
-Nell'interfaccia admin, per ogni componente puoi aggiungere una **Query di Ricerca Alternative**:
-
-```
-Esempio per GPU RTX 4060:
-RTX 4060 Ti OR RTX 4070 OR RX 7600 OR RTX 3060 Ti
-
-Esempio per CPU Ryzen 5 5600:
-Ryzen 5 5600X OR Intel i5-12400F OR Ryzen 5 5500
-
-Esempio per RAM DDR4 16GB:
-DDR4 16GB 3200MHz OR DDR4 16GB 3600MHz OR DDR4 16GB 2666MHz
-```
-
-### 2. **Controllo Manuale**
-
-Puoi controllare e sostituire manualmente i componenti:
-
+### 1. Installazione Dipendenze
 ```bash
-# Controlla disponibilità di una build
-curl -X GET /api/builds/123/availability
-
-# Controlla e sostituisce automaticamente
-curl -X POST /api/builds/123/check-and-replace
-
-# Rigenera carrello Amazon
-curl -X GET /api/builds/123/regenerate-cart
+npm install puppeteer node-cron
 ```
 
-### 3. **Controllo Automatico**
+### 2. Configurazione Database
+Il database viene aggiornato automaticamente con le colonne necessarie:
+- `searchterm`: Termine di ricerca per trovare alternative
+- `original_price`: Prezzo originale del prodotto
+- `is_substituted`: Flag per prodotti sostituiti
+- `substitution_reason`: Motivo della sostituzione
+- `original_asin`: ASIN del prodotto originale
+- `last_price_check`: Timestamp ultimo controllo
 
-Il sistema esegue automaticamente ogni 6 ore:
-- Controlla tutti i componenti di tutte le build
-- Sostituisce automaticamente quelli non disponibili
-- Rigenera i carrelli Amazon
-- Invia notifiche se configurate
-
-## 📋 API Endpoints
-
-### Controllo Disponibilità
-```http
-GET /api/builds/:id/availability
-POST /api/builds/:id/check-and-replace
+### 3. Variabili Ambiente
+```env
+PRICE_THRESHOLD=15  # Soglia percentuale per sostituzione (default: 15%)
 ```
 
-### Gestione Alternative
-```http
-GET /api/components/:id/alternatives
-POST /api/components/:id/test-search
-PUT /api/components/:id/search-query
-GET /api/components/:id/search-suggestions
+## Utilizzo
+
+### Per gli Admin
+
+#### Aggiungere Termini di Ricerca
+1. Vai alla sezione Admin → Builds
+2. Modifica una build esistente
+3. Per ogni componente, aggiungi un "Termine di Ricerca"
+   - Esempio: "AMD Ryzen 5 5600 CPU" invece di solo "AMD Ryzen 5 5600"
+
+#### Controllo Manuale
+```bash
+# Controllo di tutte le build
+curl -X POST http://localhost:3000/api/admin/check-prices
+
+# Controllo di una build specifica
+curl -X POST http://localhost:3000/api/admin/check-prices \
+  -H "Content-Type: application/json" \
+  -d '{"buildId": 1}'
+
+# Controllo di un singolo componente
+curl -X POST http://localhost:3000/api/admin/components/123/check
 ```
 
-### Carrello Amazon
-```http
-GET /api/builds/:id/regenerate-cart
+#### Gestione Sostituzioni
+```bash
+# Trova sostituto per un componente
+curl -X POST http://localhost:3000/api/admin/components/123/find-substitute
+
+# Ripristina prodotto originale
+curl -X POST http://localhost:3000/api/admin/components/123/restore
+
+# Genera carrello aggiornato
+curl -X POST http://localhost:3000/api/admin/builds/1/generate-cart
 ```
 
-### Statistiche
-```http
-GET /api/builds/:id/replacement-stats
-POST /api/admin/check-all-builds
-GET /api/admin/replacement-overview
-```
+### Per gli Utenti
 
-### Ripristino Componenti
-```http
-POST /api/components/:id/restore
-```
+#### Notifiche di Sostituzione
+- I componenti sostituiti mostrano un badge "Prodotto Sostituito"
+- Viene indicato il motivo della sostituzione
+- Il prezzo originale viene mostrato barrato se diverso
 
-## ⚙️ Configurazione
+#### Carrello Aggiornato
+- Il link "Compra Tutto" include automaticamente i prodotti sostituiti
+- Le notifiche indicano quali prodotti sono stati sostituiti
 
-### File `server/config/replacement.js`
+## API Endpoints
 
+### Controllo Prezzi
+- `POST /api/admin/check-prices` - Controlla tutti i prezzi
+- `POST /api/admin/check-prices` (con `buildId`) - Controlla build specifica
+- `POST /api/admin/components/:id/check` - Controlla singolo componente
+
+### Gestione Sostituzioni
+- `POST /api/admin/components/:id/find-substitute` - Trova sostituto
+- `POST /api/admin/components/:id/substitute` - Applica sostituzione
+- `POST /api/admin/components/:id/restore` - Ripristina originale
+
+### Carrello e Statistiche
+- `POST /api/admin/builds/:id/generate-cart` - Genera carrello aggiornato
+- `GET /api/admin/substitution-stats` - Statistiche sostituzioni
+- `PATCH /api/admin/components/:id/searchterm` - Aggiorna termine ricerca
+
+## Scheduling Automatico
+
+### Controllo Ogni 6 Ore
 ```javascript
-export const REPLACEMENT_CONFIG = {
-  // Intervallo controllo (ore)
-  checkInterval: 6,
-  
-  // Affiliate tag Amazon
-  affiliateTag: 'cpstest05-21',
-  
-  // Limiti sostituzioni
-  limits: {
-    maxPriceIncrease: 50, // euro
-    maxPriceIncreasePercentage: 20, // %
-    maxAlternatives: 10
-  }
-};
+// Cron: 0 */6 * * *
+// Controlla tutte le build pubblicate
 ```
 
-### Variabili Ambiente
+### Controllo Notturno
+```javascript
+// Cron: 0 2 * * *
+// Controlla solo build critiche (con >2 sostituzioni)
+```
+
+### Esecuzione Manuale
+```bash
+# Esegui controllo immediato
+node server/scripts/scheduledPriceCheck.js --run-now
+```
+
+## Test del Sistema
 
 ```bash
-# Email admin per notifiche
-ADMIN_EMAIL=admin@build-pc.it
-
-# Webhook per notifiche (opzionale)
-REPLACEMENT_WEBHOOK_URL=https://hooks.slack.com/...
-
-# Livello di log
-NODE_ENV=production
+# Test completo del sistema
+node test-substitution-system.js
 ```
 
-## 🧪 Testing
+Il test verifica:
+- ✅ Schema database
+- ✅ Controllo prezzi Amazon
+- ✅ Ricerca prodotti alternativi
+- ✅ Sostituzione componenti
+- ✅ API endpoints
 
-### Test Manuale
-```bash
-# Esegui test del sistema
-node test-replacement-system.js
-```
+## Log e Monitoraggio
 
-### Test API
-```bash
-# Test controllo disponibilità
-curl -X GET http://localhost:3000/api/builds/1/availability
-
-# Test ricerca alternative
-curl -X GET http://localhost:3000/api/components/1/alternatives
-```
-
-## 📊 Monitoraggio
-
-### Log del Sistema
-Il sistema genera log dettagliati per:
-- Controlli disponibilità
-- Sostituzioni eseguite
-- Errori e fallimenti
-- Statistiche performance
-
-### Dashboard Admin
-- Panoramica sostituzioni
-- Componenti che necessitano query
-- Statistiche utilizzo sistema
-
-## 🔧 Manutenzione
-
-### Aggiornamento Query
-1. Vai nell'admin panel
-2. Modifica la query di ricerca per un componente
-3. Il sistema userà la nuova query per future sostituzioni
-
-### Ripristino Componenti
-1. Trova il componente sostituito
-2. Clicca "Ripristina" nel badge
-3. Il componente originale verrà ripristinato
-
-### Pulizia Database
+### Log Database
 ```sql
--- Rimuovi componenti sostituiti vecchi (opzionale)
-DELETE FROM components WHERE is_replacement = TRUE AND created_at < DATE('now', '-30 days');
+-- Visualizza log controlli prezzi
+SELECT * FROM price_check_logs ORDER BY run_at DESC LIMIT 10;
+
+-- Statistiche sostituzioni
+SELECT 
+  COUNT(*) as total_components,
+  COUNT(CASE WHEN is_substituted = 1 THEN 1 END) as substituted,
+  COUNT(CASE WHEN last_price_check > datetime('now', '-24 hours') THEN 1 END) as checked_today
+FROM components;
 ```
 
-## 🚨 Risoluzione Problemi
+### Log Console
+Il sistema produce log dettagliati:
+- 🔍 Controllo prezzi in corso
+- ✅ Prodotti aggiornati/sostituiti
+- ❌ Errori e problemi
+- 📊 Statistiche finali
 
-### Componenti Non Sostituiti
-- Verifica che la query di ricerca sia configurata
-- Controlla che l'alternativa sia effettivamente disponibile
-- Verifica i limiti di prezzo nella configurazione
+## Risoluzione Problemi
 
-### Errori API Amazon
-- Il sistema usa simulazioni per evitare rate limiting
-- In produzione, implementa l'Amazon Product Advertising API
-- Configura proxy se necessario
+### Problemi Comuni
 
-### Job Schedulato Non Funziona
-- Verifica che il server sia in produzione (`NODE_ENV=production`)
-- Controlla i log del server
-- Verifica che il database sia accessibile
+#### Puppeteer non funziona
+```bash
+# Installa dipendenze mancanti
+sudo apt-get update
+sudo apt-get install -y wget gnupg
+wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
+sudo apt-get update
+sudo apt-get install -y google-chrome-stable
+```
 
-## 🔮 Sviluppi Futuri
+#### Amazon blocca le richieste
+- Il sistema usa user-agent realistici
+- Aggiunge delay tra le richieste
+- Usa proxy se necessario (configurabile)
 
-### Funzionalità Pianificate
-- [ ] Integrazione Amazon Product Advertising API reale
-- [ ] Machine Learning per suggerimenti automatici
-- [ ] Notifiche email/Slack per sostituzioni
-- [ ] Dashboard analytics avanzate
-- [ ] Supporto per altri marketplace (eBay, etc.)
-- [ ] Controllo compatibilità automatico
-- [ ] Sistema di rating alternative
+#### Database locked
+```bash
+# Verifica processi che usano il database
+lsof server/database/buildpc.db
 
-### Miglioramenti Tecnici
+# Riavvia il server se necessario
+pm2 restart all
+```
+
+### Debug Avanzato
+
+#### Test singolo componente
+```javascript
+import { ProductSubstitution } from './server/utils/productSubstitution.js';
+
+const substitution = new ProductSubstitution();
+const component = { /* dati componente */ };
+const result = await substitution.checkAndUpdateComponent(component);
+console.log(result);
+```
+
+#### Test scraping Amazon
+```javascript
+import { PriceChecker } from './server/utils/priceChecker.js';
+
+const checker = new PriceChecker();
+const data = await checker.checkProductPrice('https://amazon.it/dp/...');
+console.log(data);
+```
+
+## Sicurezza
+
+### Rate Limiting
+- Massimo 200 richieste per IP ogni 15 minuti
+- Delay automatico tra richieste Amazon
+- Controllo timeout per evitare blocchi
+
+### Sanitizzazione
+- Tutti gli input vengono sanitizzati
+- Validazione URL Amazon
+- Escape SQL injection
+
+### Privacy
+- Nessun dato personale viene salvato
+- Solo URL e prezzi pubblici Amazon
+- Log anonimi per debugging
+
+## Performance
+
+### Ottimizzazioni
+- Browser Puppeteer condiviso tra richieste
+- Query database ottimizzate con indici
+- Caching dei risultati per 6 ore
+
+### Monitoraggio
+- Memory usage del browser
+- Tempo di risposta Amazon
+- Successo rate delle sostituzioni
+
+## Roadmap
+
+### Funzionalità Future
+- [ ] Supporto per più marketplace (eBay, Amazon US, etc.)
+- [ ] Machine Learning per migliorare matching
+- [ ] Notifiche email per sostituzioni critiche
+- [ ] Dashboard real-time per admin
+- [ ] API webhook per integrazioni esterne
+
+### Miglioramenti
 - [ ] Cache Redis per performance
-- [ ] Queue system per job asincroni
-- [ ] API rate limiting avanzato
-- [ ] Test suite completo
-- [ ] Documentazione API automatica
-
-## 📞 Supporto
-
-Per problemi o domande:
-1. Controlla i log del sistema
-2. Verifica la configurazione
-3. Testa con il file `test-replacement-system.js`
-4. Consulta la documentazione API
+- [ ] Queue system per controlli asincroni
+- [ ] Metriche Prometheus
+- [ ] Test automatizzati CI/CD
 
 ---
 
-**Il Sistema di Sostituzione Intelligente garantisce che i tuoi carrelli Amazon siano sempre funzionanti e aggiornati, risolvendo automaticamente il problema dei componenti esauriti!** 🎉
+**Autore**: Paolo Baldini  
+**Versione**: 1.0.0  
+**Data**: 2024  
+**Licenza**: MIT

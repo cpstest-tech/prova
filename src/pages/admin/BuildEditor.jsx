@@ -86,7 +86,7 @@ export default function BuildEditor() {
       price: '',
       amazon_link: '',
       specs: '',
-      search_query: '',
+      searchterm: '',
       position: components.length,
     }]);
   };
@@ -165,7 +165,6 @@ export default function BuildEditor() {
         price: comp.price || '',
         amazon_link: comp.amazon_link || '',
         specs: comp.specs || '',
-        search_query: comp.search_query || '',
         position: components.length + idx,
       }));
       
@@ -534,6 +533,20 @@ export default function BuildEditor() {
                       />
                     </div>
 
+                    <div>
+                      <label className="label text-xs">Termine di Ricerca</label>
+                      <input
+                        type="text"
+                        value={component.searchterm || ''}
+                        onChange={(e) => handleComponentChange(index, 'searchterm', e.target.value)}
+                        className="input"
+                        placeholder="es. AMD Ryzen 5 5600 CPU"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Termine per trovare prodotti simili quando questo non è disponibile
+                      </p>
+                    </div>
+
                     <div className="md:col-span-2">
                       <label className="label text-xs">Specifiche</label>
                       <input
@@ -544,28 +557,6 @@ export default function BuildEditor() {
                         placeholder="es. 6 core, 12 thread, 3.5GHz base"
                       />
                     </div>
-                  </div>
-                  
-                  {/* Campo ricerca alternative */}
-                  <div className="col-span-full">
-                    <label className="label text-xs">
-                      🔍 Ricerca Alternative
-                      <span className="text-gray-400 ml-1">(opzionale)</span>
-                    </label>
-                    <textarea
-                      value={component.search_query || ''}
-                      onChange={(e) => handleComponentChange(index, 'search_query', e.target.value)}
-                      className="input min-h-[80px] resize-none"
-                      placeholder={`Esempio: ${component.name} OR ${component.type} alternative OR substitute ${component.type}
-
-Separa le alternative con "OR" - il sistema prenderà il primo disponibile`}
-                      rows={3}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      💡 Definisci cosa cercare su Amazon se questo prodotto va in esaurimento.
-                      <br />
-                      Esempi: "RTX 4060 Ti OR RTX 4070 OR RX 7600" oppure "DDR4 16GB 3200MHz OR DDR4 16GB 3600MHz"
-                    </p>
                   </div>
                 </div>
               ))}

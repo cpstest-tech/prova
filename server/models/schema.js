@@ -54,41 +54,6 @@ export function initializeDatabase() {
     console.error('❌ Errore nell\'aggiunta della colonna affiliate_tag:', error.message);
   }
 
-  // Aggiungi nuove colonne per sistema sostituzione componenti
-  try {
-    const componentsTableInfo = db.prepare("PRAGMA table_info(components)").all();
-    const componentColumns = componentsTableInfo.map(col => col.name);
-    
-    const newColumns = [
-      { name: 'search_query', type: 'TEXT' },
-      { name: 'is_replacement', type: 'BOOLEAN DEFAULT FALSE' },
-      { name: 'original_component_id', type: 'INTEGER' },
-      { name: 'replacement_reason', type: 'TEXT' },
-      { name: 'price_difference', type: 'DECIMAL(10,2)' },
-      { name: 'last_checked', type: 'DATETIME' },
-      { name: 'is_available', type: 'BOOLEAN DEFAULT TRUE' }
-    ];
-    
-    for (const column of newColumns) {
-      if (!componentColumns.includes(column.name)) {
-        db.exec(`ALTER TABLE components ADD COLUMN ${column.name} ${column.type}`);
-        console.log(`✅ Colonna ${column.name} aggiunta alla tabella components`);
-      } else {
-        console.log(`ℹ️  Colonna ${column.name} già presente nella tabella components`);
-      }
-    }
-    
-    // Aggiungi foreign key se non esiste
-    try {
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_components_original ON components(original_component_id)`);
-    } catch (error) {
-      console.log('ℹ️  Indice original_component_id già presente o errore:', error.message);
-    }
-    
-  } catch (error) {
-    console.error('❌ Errore nell\'aggiunta delle colonne components:', error.message);
-  }
-
   // Tabella componenti
   db.exec(`
     CREATE TABLE IF NOT EXISTS components (
@@ -103,18 +68,39 @@ export function initializeDatabase() {
       image_url TEXT,
       specs TEXT,
       position INTEGER DEFAULT 0,
-      search_query TEXT,
-      is_replacement BOOLEAN DEFAULT FALSE,
-      original_component_id INTEGER,
-      replacement_reason TEXT,
-      price_difference DECIMAL(10,2),
-      last_checked DATETIME,
-      is_available BOOLEAN DEFAULT TRUE,
+      searchterm TEXT,
+      original_price REAL,
+      is_substituted INTEGER DEFAULT 0,
+      substitution_reason TEXT,
+      original_asin TEXT,
+      last_price_check DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE,
-      FOREIGN KEY (original_component_id) REFERENCES components(id)
+      FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
     )
   `);
+
+  // Aggiungi colonne per sostituzione intelligente se non esistono
+  try {
+    const componentTableInfo = db.prepare("PRAGMA table_info(components)").all();
+    const columnsToAdd = [
+      { name: 'searchterm', type: 'TEXT' },
+      { name: 'original_price', type: 'REAL' },
+      { name: 'is_substituted', type: 'INTEGER DEFAULT 0' },
+      { name: 'substitution_reason', type: 'TEXT' },
+      { name: 'original_asin', type: 'TEXT' },
+      { name: 'last_price_check', type: 'DATETIME' }
+    ];
+
+    for (const column of columnsToAdd) {
+      const hasColumn = componentTableInfo.some(col => col.name === column.name);
+      if (!hasColumn) {
+        db.exec(`ALTER TABLE components ADD COLUMN ${column.name} ${column.type}`);
+        console.log(`✅ Colonna ${column.name} aggiunta alla tabella components`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Errore nell\'aggiunta delle colonne per sostituzione:', error.message);
+  }
 
   // Tabella tentativi di login (security logging)
   db.exec(`

@@ -12,13 +12,9 @@ import authRoutes from './routes/auth.js';
 import buildsRoutes from './routes/builds.js';
 import adminRoutes from './routes/admin.js';
 import seoRoutes from './routes/seo.js';
-import availabilityRoutes from './routes/availability.js';
 
 // Database initialization
 import { initializeDatabase } from './models/schema.js';
-
-// Scheduled jobs
-import { startScheduledJob, stopScheduledJob } from './scripts/updateAvailability.js';
 
 // Security middleware
 import { sanitizeBody, preventParameterPollution } from './middleware/security.js';
@@ -159,7 +155,6 @@ if (process.env.NODE_ENV === 'production') {
 app.use('/api/auth', authRoutes);
 app.use('/api/builds', buildsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api', availabilityRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -214,15 +209,18 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize database before starting server
 initializeDatabase();
 
+// Avvia il controllo prezzi schedulato se non in modalità test
+if (process.env.NODE_ENV !== 'test') {
+  import('./scripts/scheduledPriceCheck.js').then(() => {
+    console.log('✅ Sistema di controllo prezzi schedulato avviato');
+  }).catch(error => {
+    console.error('❌ Errore nell\'avvio del controllo prezzi:', error);
+  });
+}
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server avviato su http://0.0.0.0:${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  
-  // Avvia job schedulato per controllo disponibilità
-  if (process.env.NODE_ENV === 'production') {
-    startScheduledJob();
-    console.log('⏰ Job schedulato controllo disponibilità avviato');
-  }
 });
 
 // Configurazione timeout del server per AWS EC2
@@ -242,9 +240,6 @@ server.on('error', (err) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 Ricevuto SIGTERM, chiusura graceful...');
-  if (process.env.NODE_ENV === 'production') {
-    stopScheduledJob();
-  }
   server.close(() => {
     console.log('✅ Server chiuso');
     process.exit(0);
@@ -253,9 +248,6 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('🛑 Ricevuto SIGINT, chiusura graceful...');
-  if (process.env.NODE_ENV === 'production') {
-    stopScheduledJob();
-  }
   server.close(() => {
     console.log('✅ Server chiuso');
     process.exit(0);
