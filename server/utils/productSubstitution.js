@@ -225,7 +225,7 @@ export class ProductSubstitution {
       // Nessun aggiornamento necessario
       else {
         // Aggiorna solo il timestamp dell'ultimo controllo
-        db.prepare('UPDATE components SET last_price_check = ? WHERE id = ?')
+        database.prepare('UPDATE components SET last_price_check = ? WHERE id = ?')
           .run(new Date().toISOString(), component.id);
         return { updated: false, substituted: false };
       }
