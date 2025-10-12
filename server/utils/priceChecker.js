@@ -74,7 +74,11 @@ export class PriceChecker {
           title: '',
           image: '',
           asin: '',
-          error: null
+          error: null,
+          debug: {
+            allPriceElements: [],
+            pageUrl: window.location.href
+          }
         };
 
         try {
@@ -96,6 +100,32 @@ export class PriceChecker {
                            !availabilityText.includes('unavailable');
           } else {
             data.available = true; // Assume disponibile se non trova indicatori
+          }
+
+          // DEBUG: Raccogli tutti gli elementi con prezzi
+          const allPriceSelectors = [
+            '.a-price',
+            '.a-price-whole',
+            '.a-price-fraction',
+            '.a-offscreen',
+            '[class*="price"]',
+            '[id*="price"]'
+          ];
+          
+          for (const selector of allPriceSelectors) {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => {
+              const text = el.textContent.trim();
+              if (text && text.match(/[\d,.]/)) {
+                data.debug.allPriceElements.push({
+                  selector: selector,
+                  text: text,
+                  className: el.className,
+                  id: el.id,
+                  parentText: el.parentElement?.textContent?.substring(0, 100) || ''
+                });
+              }
+            });
           }
 
           // Estrai prezzo - ordine di priorità per Amazon Italia
@@ -135,7 +165,7 @@ export class PriceChecker {
                 } else {
                   console.log(`❌ Prezzo venditore terzo ignorato: €${price}`);
                 }
-          } else {
+              } else {
                 console.log(`❌ Prezzo non valido: €${price} (fuori range 1-1000€)`);
               }
             }

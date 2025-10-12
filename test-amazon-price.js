@@ -27,9 +27,22 @@ async function testAmazonPrice() {
     console.log('ASIN:', result.asin);
     console.log('Errore:', result.error);
     
+    if (result.debug && result.debug.allPriceElements) {
+      console.log('\n🔍 DEBUG - Tutti gli elementi con prezzi trovati:');
+      result.debug.allPriceElements.forEach((el, index) => {
+        console.log(`${index + 1}. Selector: ${el.selector}`);
+        console.log(`   Testo: "${el.text}"`);
+        console.log(`   Classe: ${el.className}`);
+        console.log(`   ID: ${el.id}`);
+        console.log(`   Parent: ${el.parentText.substring(0, 50)}...`);
+        console.log('');
+      });
+    }
+    
     if (result.price > 200) {
       console.log('\n⚠️ ATTENZIONE: Prezzo sembra troppo alto!');
       console.log('Il prodotto dovrebbe costare circa €60-80, non €' + result.price);
+      console.log('Controlla il debug sopra per vedere tutti i prezzi trovati.');
     }
     
   } catch (error) {
