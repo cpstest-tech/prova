@@ -95,6 +95,11 @@ export class PriceChecker {
         try {
           // Funzione per verificare se un elemento è nella variante selezionata
           function isInSelectedVariant(element, variantParams) {
+            // Controllo di sicurezza per variantParams
+            if (!variantParams) {
+              return true;
+            }
+            
             // Se non ci sono parametri variante specifici, accetta tutto
             if (!variantParams.ref && !variantParams.th && !variantParams.psc && !variantParams.variant) {
               return true;
