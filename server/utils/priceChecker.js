@@ -213,15 +213,35 @@ export class PriceChecker {
               const cleanPriceText = priceText.replace(/[^\d,.]/g, '');
               const price = parseFloat(cleanPriceText.replace(',', '.'));
               
-              // Validazione prezzo ragionevole (tra 1€ e 1000€ per componenti PC)
-              if (price > 1 && price < 1000) {
+              // Validazione prezzo ragionevole - range più restrittivo
+              if (price > 5 && price < 500) { // Range più realistico per componenti PC
                 // Controlla se non è un prezzo di venditore terzo (spesso molto alto)
                 const elementText = priceElement.textContent.toLowerCase();
+                const parentText = priceElement.parentElement?.textContent?.toLowerCase() || '';
                 const isThirdParty = elementText.includes('spedito da') || 
                                    elementText.includes('venduto da') ||
-                                   elementText.includes('seller');
+                                   elementText.includes('seller') ||
+                                   parentText.includes('venduto da') ||
+                                   parentText.includes('spedito da') ||
+                                   parentText.includes('third party') ||
+                                   parentText.includes('marketplace');
                 
-                if (!isThirdParty) {
+                // Controlla se non è un prezzo in valuta diversa (USD, GBP, etc.)
+                const isWrongCurrency = priceText.includes('$') || 
+                                      priceText.includes('USD') ||
+                                      priceText.includes('£') ||
+                                      priceText.includes('GBP') ||
+                                      priceText.includes('dollars') ||
+                                      priceText.includes('pounds');
+                
+                // Controlla se non è un prezzo per quantità multiple
+                const isBulkPrice = elementText.includes('per') ||
+                                  elementText.includes('each') ||
+                                  elementText.includes('x') ||
+                                  parentText.includes('pack of') ||
+                                  parentText.includes('set of');
+                
+                if (!isThirdParty && !isWrongCurrency && !isBulkPrice) {
                   // Verifica se appartiene alla variante selezionata
                   if (isInSelectedVariant(priceElement, variantParams)) {
                     data.price = price;
@@ -235,24 +255,24 @@ export class PriceChecker {
                     break;
                   } else {
                     console.log(`⚠️ Prezzo ignorato (non nella variante selezionata): "${priceText}"`);
-                    // Salva come fallback se non abbiamo ancora un prezzo
-                    if (!fallbackPrice) {
+                    // Salva come fallback se non abbiamo ancora un prezzo e sembra ragionevole
+                    if (!fallbackPrice && price < 200) {
                       fallbackPrice = price;
                       console.log(`💾 Prezzo salvato come fallback: €${price}`);
                     }
                   }
                 } else {
-                  console.log(`❌ Prezzo venditore terzo ignorato: €${price}`);
+                  console.log(`❌ Prezzo scartato: €${price} (terzo=${isThirdParty}, valuta=${isWrongCurrency}, bulk=${isBulkPrice})`);
                 }
               } else {
-                console.log(`❌ Prezzo non valido: €${price} (fuori range 1-1000€)`);
+                console.log(`❌ Prezzo non valido: €${price} (fuori range 5-500€)`);
               }
             }
             if (foundValidPrice) break;
           }
           
-          // Se non trova un prezzo per la variante specifica, usa il fallback
-          if (!foundValidPrice && fallbackPrice) {
+          // Se non trova un prezzo per la variante specifica, usa il fallback (solo se ragionevole)
+          if (!foundValidPrice && fallbackPrice && fallbackPrice < 200) {
             console.log(`⚠️ Nessun prezzo trovato per variante specifica, uso fallback: €${fallbackPrice}`);
             data.price = fallbackPrice;
             data.debug.selectedVariant = {
@@ -261,6 +281,8 @@ export class PriceChecker {
               element: 'fallback-price'
             };
             foundValidPrice = true;
+          } else if (!foundValidPrice) {
+            console.log(`❌ Nessun prezzo valido trovato (fallback: €${fallbackPrice || 'N/A'})`);
           }
 
           // Estrai prezzo originale (se in sconto) - solo dalla variante selezionata
