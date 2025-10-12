@@ -6,6 +6,13 @@ import ThumbnailGenerator from '../../components/ThumbnailGenerator';
 import ComponentAlternatives from '../../components/ComponentAlternatives';
 import { useAdminTheme } from '../../context/AdminThemeContext';
 
+// Funzione per estrarre ASIN da URL Amazon
+const extractASINFromUrl = (url) => {
+  if (!url) return null;
+  const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
+  return asinMatch ? (asinMatch[1] || asinMatch[2] || asinMatch[3]) : null;
+};
+
 export default function BuildEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -79,6 +86,15 @@ export default function BuildEditor() {
   const handleComponentChange = (index, field, value) => {
     const updated = [...components];
     updated[index] = { ...updated[index], [field]: value };
+    
+    // Estrai automaticamente l'ASIN dal link Amazon
+    if (field === 'amazon_link' && value) {
+      const asin = extractASINFromUrl(value);
+      if (asin && !updated[index].asin) {
+        updated[index].asin = asin;
+      }
+    }
+    
     setComponents(updated);
   };
 
@@ -685,6 +701,18 @@ export default function BuildEditor() {
                         onChange={(e) => handleComponentChange(index, 'amazon_link', e.target.value)}
                         className="input"
                         placeholder="https://amazon.it/dp/..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="label text-xs">ASIN Amazon</label>
+                      <input
+                        type="text"
+                        value={component.asin || ''}
+                        onChange={(e) => handleComponentChange(index, 'asin', e.target.value)}
+                        className="input"
+                        placeholder="es. B08N5WRWNW"
+                        title="ASIN del prodotto Amazon (viene estratto automaticamente dal link)"
                       />
                     </div>
 

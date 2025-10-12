@@ -117,8 +117,8 @@ export class Component {
     const stmt = db.prepare(`
       INSERT INTO components (
         build_id, type, name, brand, model, price, 
-        amazon_link, image_url, specs, position
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        amazon_link, image_url, specs, position, asin
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     const insertMany = db.transaction((items) => {
@@ -133,7 +133,8 @@ export class Component {
           comp.amazon_link || null,
           comp.image_url || null,
           comp.specs || null,
-          comp.position || 0
+          comp.position || 0,
+          comp.asin || null
         );
       }
     });

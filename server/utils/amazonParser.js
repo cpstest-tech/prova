@@ -270,6 +270,7 @@ export async function importFromAmazonCart(cartUrl, domain = 'amazon.it') {
         amazon_link: product.amazonLink,
         image_url: product.imageUrl,
         specs: product.specs,
+        asin: asin, // Aggiungi l'ASIN al componente
       };
       
       components.push(component);
