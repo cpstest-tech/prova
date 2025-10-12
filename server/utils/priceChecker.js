@@ -335,10 +335,38 @@ export class PriceChecker {
       });
 
       await this.page.waitForTimeout(2000);
+      
+      // Controlla se Amazon ha mostrato un captcha o blocco
+      const hasCaptcha = await this.page.evaluate(() => {
+        return document.querySelector('#captcha-challenge, .a-alert-error, .a-alert-information') !== null;
+      });
+      
+      if (hasCaptcha) {
+        console.log('⚠️ Amazon ha mostrato un captcha o blocco, salto la ricerca');
+        return [];
+      }
 
       const searchResults = await this.page.evaluate(() => {
         const results = [];
-        const productElements = document.querySelectorAll('[data-component-type="s-search-result"]');
+        
+        // Prova diversi selettori per trovare i prodotti
+        const productSelectors = [
+          '[data-component-type="s-search-result"]',
+          '.s-result-item[data-asin]',
+          '.s-search-result',
+          '[data-asin]'
+        ];
+        
+        let productElements = [];
+        for (const selector of productSelectors) {
+          productElements = document.querySelectorAll(selector);
+          if (productElements.length > 0) {
+            console.log(`Trovati ${productElements.length} prodotti con selettore: ${selector}`);
+            break;
+          }
+        }
+        
+        console.log(`Totale elementi trovati: ${productElements.length}`);
 
         for (let i = 0; i < Math.min(productElements.length, 10); i++) {
           const element = productElements[i];
@@ -354,30 +382,65 @@ export class PriceChecker {
               available: false
             };
 
-            // Titolo
-            const titleElement = element.querySelector('h2 a span, .s-size-mini span');
-            if (titleElement) {
-              product.title = titleElement.textContent.trim();
-            }
-
-            // Prezzo
-            const priceElement = element.querySelector('.a-price-whole, .a-offscreen');
-            if (priceElement) {
-              const priceText = priceElement.textContent.replace(/[^\d,.]/g, '');
-              const price = parseFloat(priceText.replace(',', '.'));
-              if (price > 0) {
-                product.price = price;
+            // Titolo - Prova diversi selettori
+            const titleSelectors = [
+              'h2 a span',
+              '.s-size-mini span',
+              'h2 span',
+              '.s-title-instructions-style span',
+              '[data-cy="title-recipe-title"] span'
+            ];
+            
+            for (const selector of titleSelectors) {
+              const titleElement = element.querySelector(selector);
+              if (titleElement && titleElement.textContent.trim()) {
+                product.title = titleElement.textContent.trim();
+                break;
               }
             }
 
-            // Link
-            const linkElement = element.querySelector('h2 a, .s-size-mini a');
-            if (linkElement) {
-              product.link = 'https://www.amazon.it' + linkElement.getAttribute('href');
+            // Prezzo - Prova diversi selettori
+            const priceSelectors = [
+              '.a-price-whole',
+              '.a-offscreen',
+              '.a-price-range .a-offscreen',
+              '.a-price .a-offscreen',
+              '.a-price-symbol + .a-price-whole'
+            ];
+            
+            for (const selector of priceSelectors) {
+              const priceElement = element.querySelector(selector);
+              if (priceElement) {
+                const priceText = priceElement.textContent.replace(/[^\d,.]/g, '');
+                const price = parseFloat(priceText.replace(',', '.'));
+                if (price > 0 && price < 10000) { // Validazione prezzo ragionevole
+                  product.price = price;
+                  break;
+                }
+              }
+            }
+
+            // Link - Prova diversi selettori
+            const linkSelectors = [
+              'h2 a',
+              '.s-size-mini a',
+              'a[href*="/dp/"]',
+              'a[href*="/gp/product/"]'
+            ];
+            
+            for (const selector of linkSelectors) {
+              const linkElement = element.querySelector(selector);
+              if (linkElement) {
+                const href = linkElement.getAttribute('href');
+                if (href) {
+                  product.link = href.startsWith('http') ? href : 'https://www.amazon.it' + href;
+                  break;
+                }
+              }
             }
 
             // Immagine
-            const imageElement = element.querySelector('.s-image');
+            const imageElement = element.querySelector('.s-image, img');
             if (imageElement) {
               product.image = imageElement.src || imageElement.getAttribute('data-src');
             }
@@ -389,7 +452,7 @@ export class PriceChecker {
             }
 
             // Rating
-            const ratingElement = element.querySelector('.a-icon-alt');
+            const ratingElement = element.querySelector('.a-icon-alt, .a-star-mini');
             if (ratingElement) {
               const ratingText = ratingElement.textContent;
               const ratingMatch = ratingText.match(/(\d+[.,]\d+)/);
@@ -398,17 +461,23 @@ export class PriceChecker {
               }
             }
 
-            // Disponibilità (controllo semplice)
-            const unavailableElement = element.querySelector('.a-color-price.a-text-bold');
+            // Disponibilità
+            const unavailableElement = element.querySelector('.a-color-price.a-text-bold, .a-color-base');
             if (unavailableElement) {
               const text = unavailableElement.textContent.toLowerCase();
-              product.available = !text.includes('non disponibile') && !text.includes('unavailable');
+              product.available = !text.includes('non disponibile') && 
+                                 !text.includes('unavailable') &&
+                                 !text.includes('temporaneamente');
             } else {
               product.available = true;
             }
 
+            // Solo aggiungi se ha almeno titolo e prezzo
             if (product.title && product.price && product.link) {
+              console.log(`Prodotto valido trovato: ${product.title.substring(0, 50)}... - €${product.price}`);
               results.push(product);
+            } else {
+              console.log(`Prodotto scartato: titolo=${!!product.title}, prezzo=${product.price}, link=${!!product.link}`);
             }
 
           } catch (error) {
@@ -416,6 +485,7 @@ export class PriceChecker {
           }
         }
 
+        console.log(`Totale prodotti validi: ${results.length}`);
         return results;
       });
 
