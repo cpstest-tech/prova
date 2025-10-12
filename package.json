@@ -17,6 +17,7 @@
     "test-substitution": "node test-substitution-system.js",
     "test-substitution-simple": "node test-substitution-simple.js",
     "test-no-puppeteer": "node test-no-puppeteer.js",
+    "test-amazon-price": "node test-amazon-price.js",
     "test-simple": "node test-simple.js",
     "check-prices": "node server/scripts/scheduledPriceCheck.js --run-now",
     "install-chromium": "bash install-chromium.sh"
