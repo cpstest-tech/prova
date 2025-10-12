@@ -66,7 +66,16 @@ export class PriceChecker {
       // Aspetta che la pagina si carichi completamente
       await this.page.waitForTimeout(2000);
 
-      const productData = await this.page.evaluate(() => {
+      // Estrai parametri URL per identificare la variante specifica
+      const urlParams = new URL(amazonLink).searchParams;
+      const variantParams = {
+        ref: urlParams.get('ref_'),
+        th: urlParams.get('th'),
+        psc: urlParams.get('psc'),
+        variant: urlParams.get('variant')
+      };
+
+      const productData = await this.page.evaluate((variantParams) => {
         const data = {
           available: false,
           price: null,
@@ -77,21 +86,68 @@ export class PriceChecker {
           error: null,
           debug: {
             allPriceElements: [],
-            pageUrl: window.location.href
+            pageUrl: window.location.href,
+            variantParams: variantParams,
+            selectedVariant: null
           }
         };
 
         try {
-          // Controlla se il prodotto è disponibile
-          const unavailableSelectors = [
-            '#availability span:contains("Non disponibile")',
-            '#availability span:contains("Temporaneamente non disponibile")',
-            '#availability span:contains("Currently unavailable")',
-            '.a-color-price.a-text-bold:contains("Non disponibile")',
-            '.a-color-price.a-text-bold:contains("Temporaneamente non disponibile")',
-            '[data-asin-price="0"]'
-          ];
+          // Funzione per verificare se un elemento è nella variante selezionata
+          function isInSelectedVariant(element, variantParams) {
+            // Se non ci sono parametri variante specifici, accetta tutto
+            if (!variantParams.ref && !variantParams.th && !variantParams.psc && !variantParams.variant) {
+              return true;
+            }
 
+            // Controlla se l'elemento è dentro un contenitore di variante specifica
+            let parent = element;
+            let depth = 0;
+            const maxDepth = 10; // Limita la profondità per evitare loop infiniti
+            
+            while (parent && parent !== document.body && depth < maxDepth) {
+              // Controlla attributi data che indicano varianti
+              if (parent.dataset.variantId || parent.dataset.asin || parent.dataset.styleId) {
+                // Verifica se corrisponde ai parametri della variante
+                if (variantParams.variant && parent.dataset.variantId === variantParams.variant) {
+                  return true;
+                }
+                if (variantParams.psc && parent.dataset.styleId === variantParams.psc) {
+                  return true;
+                }
+              }
+              
+              // Controlla se è nella sezione variante attiva/selezionata
+              if (parent.classList.contains('a-selected') || 
+                  parent.classList.contains('a-button-selected') ||
+                  parent.classList.contains('a-toggle-selected') ||
+                  parent.hasAttribute('data-selected') ||
+                  parent.getAttribute('aria-selected') === 'true') {
+                return true;
+              }
+              
+              // Controlla se è dentro un elemento di variante attiva
+              if (parent.classList.contains('a-button-toggle') && 
+                  parent.classList.contains('a-button-selected')) {
+                return true;
+              }
+              
+              parent = parent.parentElement;
+              depth++;
+            }
+            
+            // Se non trova una variante specifica, controlla se ci sono elementi di variante nella pagina
+            const variantElements = document.querySelectorAll('[data-variant-id], [data-style-id], .a-button-toggle');
+            if (variantElements.length === 0) {
+              // Nessuna variante trovata, accetta il prezzo
+              return true;
+            }
+            
+            // Se ci sono varianti ma non trova quella selezionata, rifiuta
+            return false;
+          }
+
+          // Controlla se il prodotto è disponibile
           const availabilityElement = document.querySelector('#availability span, .a-color-price.a-text-bold');
           if (availabilityElement) {
             const availabilityText = availabilityElement.textContent.toLowerCase();
@@ -122,13 +178,14 @@ export class PriceChecker {
                   text: text,
                   className: el.className,
                   id: el.id,
-                  parentText: el.parentElement?.textContent?.substring(0, 100) || ''
+                  parentText: el.parentElement?.textContent?.substring(0, 100) || '',
+                  inSelectedVariant: isInSelectedVariant(el, variantParams)
                 });
               }
             });
           }
 
-          // Estrai prezzo - ordine di priorità per Amazon Italia
+          // Estrai prezzo - ordine di priorità per Amazon Italia, ma solo dalla variante selezionata
           const priceSelectors = [
             '.a-price.a-text-price .a-offscreen', // Prezzo principale barrato (sconto)
             '.a-price .a-offscreen', // Prezzo principale
@@ -139,6 +196,8 @@ export class PriceChecker {
           ];
 
           let foundValidPrice = false;
+          let fallbackPrice = null; // Prezzo di fallback se non trova quello della variante
+          
           for (const selector of priceSelectors) {
             const priceElements = document.querySelectorAll(selector);
             for (const priceElement of priceElements) {
@@ -149,7 +208,7 @@ export class PriceChecker {
               const cleanPriceText = priceText.replace(/[^\d,.]/g, '');
               const price = parseFloat(cleanPriceText.replace(',', '.'));
               
-          // Validazione prezzo ragionevole (tra 1€ e 1000€ per componenti PC)
+              // Validazione prezzo ragionevole (tra 1€ e 1000€ per componenti PC)
               if (price > 1 && price < 1000) {
                 // Controlla se non è un prezzo di venditore terzo (spesso molto alto)
                 const elementText = priceElement.textContent.toLowerCase();
@@ -158,10 +217,25 @@ export class PriceChecker {
                                    elementText.includes('seller');
                 
                 if (!isThirdParty) {
-                  data.price = price;
-                  console.log(`✅ Prezzo valido trovato: €${price} da selector: ${selector}`);
-                  foundValidPrice = true;
-                  break;
+                  // Verifica se appartiene alla variante selezionata
+                  if (isInSelectedVariant(priceElement, variantParams)) {
+                    data.price = price;
+                    data.debug.selectedVariant = {
+                      selector: selector,
+                      text: priceText,
+                      element: priceElement.className
+                    };
+                    console.log(`✅ Prezzo valido trovato per variante selezionata: €${price} da selector: ${selector}`);
+                    foundValidPrice = true;
+                    break;
+                  } else {
+                    console.log(`⚠️ Prezzo ignorato (non nella variante selezionata): "${priceText}"`);
+                    // Salva come fallback se non abbiamo ancora un prezzo
+                    if (!fallbackPrice) {
+                      fallbackPrice = price;
+                      console.log(`💾 Prezzo salvato come fallback: €${price}`);
+                    }
+                  }
                 } else {
                   console.log(`❌ Prezzo venditore terzo ignorato: €${price}`);
                 }
@@ -171,14 +245,27 @@ export class PriceChecker {
             }
             if (foundValidPrice) break;
           }
+          
+          // Se non trova un prezzo per la variante specifica, usa il fallback
+          if (!foundValidPrice && fallbackPrice) {
+            console.log(`⚠️ Nessun prezzo trovato per variante specifica, uso fallback: €${fallbackPrice}`);
+            data.price = fallbackPrice;
+            data.debug.selectedVariant = {
+              selector: 'fallback',
+              text: `€${fallbackPrice}`,
+              element: 'fallback-price'
+            };
+            foundValidPrice = true;
+          }
 
-          // Estrai prezzo originale (se in sconto)
+          // Estrai prezzo originale (se in sconto) - solo dalla variante selezionata
           const originalPriceElement = document.querySelector('.a-price.a-text-price .a-offscreen');
-          if (originalPriceElement) {
+          if (originalPriceElement && isInSelectedVariant(originalPriceElement, variantParams)) {
             const originalPriceText = originalPriceElement.textContent.replace(/[^\d,.]/g, '');
             const originalPrice = parseFloat(originalPriceText.replace(',', '.'));
             if (originalPrice > 0) {
               data.originalPrice = originalPrice;
+              console.log(`✅ Prezzo originale trovato per variante selezionata: €${originalPrice}`);
             }
           }
 
