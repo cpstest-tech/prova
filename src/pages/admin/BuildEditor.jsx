@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, Upload, X, Image as ImageIcon, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Upload, X, Image as ImageIcon, ShoppingCart, RefreshCw, DollarSign, Zap } from 'lucide-react';
 import api from '../../utils/api';
 import ThumbnailGenerator from '../../components/ThumbnailGenerator';
+import ComponentAlternatives from '../../components/ComponentAlternatives';
 import { useAdminTheme } from '../../context/AdminThemeContext';
 
 export default function BuildEditor() {
@@ -19,6 +20,10 @@ export default function BuildEditor() {
   const [amazonUrl, setAmazonUrl] = useState('');
   const [importing, setImporting] = useState(false);
   const [generatedCartUrl, setGeneratedCartUrl] = useState('');
+  const [updatingPrices, setUpdatingPrices] = useState(false);
+  const [priceUpdateResults, setPriceUpdateResults] = useState(null);
+  const [smartReplacing, setSmartReplacing] = useState(false);
+  const [smartReplacementResults, setSmartReplacementResults] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -140,6 +145,106 @@ export default function BuildEditor() {
     if (!url) return null;
     const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})|[?&]asin=([A-Z0-9]{10})/i);
     return asinMatch ? (asinMatch[1] || asinMatch[2] || asinMatch[3]) : null;
+  };
+
+  // Aggiorna prezzi dei componenti della build
+  const handleUpdatePrices = async () => {
+    if (!isEdit || !id) {
+      alert('Devi salvare la build prima di aggiornare i prezzi');
+      return;
+    }
+
+    try {
+      setUpdatingPrices(true);
+      setPriceUpdateResults(null);
+      
+      const response = await api.post(`/admin/builds/${id}/update-prices`);
+      const results = response.data.results;
+      
+      setPriceUpdateResults(results);
+      
+      // Aggiorna i componenti con i nuovi prezzi
+      const updatedComponents = [...components];
+      results.forEach(result => {
+        if (result.success) {
+          const componentIndex = updatedComponents.findIndex(c => 
+            extractASINFromUrl(c.amazon_link) === result.asin
+          );
+          if (componentIndex !== -1) {
+            updatedComponents[componentIndex] = {
+              ...updatedComponents[componentIndex],
+              price: result.price
+            };
+          }
+        }
+      });
+      
+      setComponents(updatedComponents);
+      
+      const successCount = results.filter(r => r.success).length;
+      const totalCount = results.length;
+      
+      alert(`Aggiornamento prezzi completato!\n\n✅ Successi: ${successCount}/${totalCount}\n${successCount < totalCount ? '❌ Alcuni prezzi non sono stati aggiornati' : ''}`);
+      
+    } catch (error) {
+      console.error('Error updating prices:', error);
+      alert(error.response?.data?.error?.message || 'Errore nell\'aggiornamento dei prezzi');
+    } finally {
+      setUpdatingPrices(false);
+    }
+  };
+
+  // Sostituzione intelligente dei componenti non disponibili
+  const handleSmartReplacement = async () => {
+    if (!isEdit || !id) {
+      alert('Devi salvare la build prima di applicare la sostituzione intelligente');
+      return;
+    }
+
+    try {
+      setSmartReplacing(true);
+      setSmartReplacementResults(null);
+      
+      const response = await api.post(`/admin/builds/${id}/smart-replacement`);
+      const results = response.data.results;
+      const summary = response.data.summary;
+      
+      setSmartReplacementResults(results);
+      
+      // Aggiorna i componenti con le sostituzioni
+      const updatedComponents = [...components];
+      results.forEach(result => {
+        if (result.status === 'replaced' && result.replacement) {
+          const componentIndex = updatedComponents.findIndex(c => 
+            extractASINFromUrl(c.amazon_link) === result.asin
+          );
+          if (componentIndex !== -1) {
+            updatedComponents[componentIndex] = {
+              ...updatedComponents[componentIndex],
+              name: result.replacement.name,
+              amazon_link: result.replacement.url,
+              price: result.replacement.price
+            };
+          }
+        }
+      });
+      
+      setComponents(updatedComponents);
+      
+      const message = `Sostituzione intelligente completata!\n\n` +
+        `✅ Disponibili: ${summary.available}\n` +
+        `🔄 Sostituiti: ${summary.replaced}\n` +
+        `❌ Non disponibili: ${summary.unavailable}\n` +
+        `⚠️ Errori: ${summary.errors}`;
+      
+      alert(message);
+      
+    } catch (error) {
+      console.error('Error smart replacement:', error);
+      alert(error.response?.data?.error?.message || 'Errore nella sostituzione intelligente');
+    } finally {
+      setSmartReplacing(false);
+    }
   };
 
   const handleAmazonImport = async () => {
@@ -411,7 +516,7 @@ export default function BuildEditor() {
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className={`text-xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Componenti</h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={generateAmazonCartLink}
@@ -430,6 +535,38 @@ export default function BuildEditor() {
                 <ShoppingCart className="w-4 h-4" />
                 Importa da Amazon
               </button>
+              {isEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUpdatePrices}
+                    className="btn-primary btn-sm inline-flex items-center gap-2"
+                    disabled={updatingPrices || components.length === 0}
+                    title="Aggiorna prezzi da fonti esterne"
+                  >
+                    {updatingPrices ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    {updatingPrices ? 'Aggiornamento...' : 'Aggiorna Prezzi'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSmartReplacement}
+                    className="btn-secondary btn-sm inline-flex items-center gap-2"
+                    disabled={smartReplacing || components.length === 0}
+                    title="Sostituisce intelligentemente i prodotti non disponibili con alternative"
+                  >
+                    {smartReplacing ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <Zap className="w-4 h-4" />
+                    )}
+                    {smartReplacing ? 'Sostituzione...' : 'Sostituzione Intelligente'}
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={addComponent}
@@ -450,7 +587,17 @@ export default function BuildEditor() {
               {components.map((component, index) => (
                 <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Componente {index + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Componente {index + 1}</span>
+                      {smartReplacementResults && smartReplacementResults.find(r => 
+                        extractASINFromUrl(component.amazon_link) === r.asin && r.status === 'replaced'
+                      ) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                          <Zap className="w-3 h-3" />
+                          Sostituito intelligentemente
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeComponent(index)}
@@ -511,14 +658,23 @@ export default function BuildEditor() {
 
                     <div>
                       <label className="label text-xs">Prezzo (€)</label>
-                      <input
-                        type="number"
-                        value={component.price}
-                        onChange={(e) => handleComponentChange(index, 'price', e.target.value)}
-                        className="input"
-                        placeholder="139.99"
-                        step="0.01"
-                      />
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={component.price}
+                          onChange={(e) => handleComponentChange(index, 'price', e.target.value)}
+                          className="input"
+                          placeholder="139.99"
+                          step="0.01"
+                        />
+                        {priceUpdateResults && priceUpdateResults.find(r => 
+                          extractASINFromUrl(component.amazon_link) === r.asin && r.success
+                        ) && (
+                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                            <DollarSign className="w-4 h-4 text-green-600" title="Prezzo aggiornato automaticamente" />
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -544,6 +700,18 @@ export default function BuildEditor() {
                       />
                     </div>
                   </div>
+
+                  {/* Gestione Alternative */}
+                  {component.amazon_link && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <ComponentAlternatives
+                        component={component}
+                        onAlternativesChange={() => {
+                          // Refresh componenti se necessario
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -774,5 +774,189 @@ router.post('/alternatives/update-prices', async (req, res) => {
   }
 });
 
+// Verifica disponibilità e sostituzione intelligente per un componente
+router.post('/components/:id/check-availability', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const component = Component.getById(id);
+    
+    if (!component) {
+      return res.status(404).json({ error: { message: 'Componente non trovato' } });
+    }
+
+    if (!component.asin) {
+      return res.status(400).json({ 
+        error: { message: 'Componente non ha un ASIN Amazon' } 
+      });
+    }
+
+    console.log(`🔍 Verifica disponibilità per componente ${component.name} (${component.asin})`);
+
+    // Prova a recuperare il prezzo del componente originale
+    const { fetchPrice } = await import('../utils/priceUpdater.js');
+    const priceData = await fetchPrice(component.asin, true);
+
+    if (priceData.price && !priceData.isFallback) {
+      // Componente disponibile, aggiorna il prezzo
+      Component.updatePrice(component.asin, {
+        price: priceData.price,
+        source: priceData.source,
+        last_checked: priceData.last_checked,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
+
+      res.json({
+        available: true,
+        message: 'Componente disponibile',
+        priceData,
+        component: Component.getById(id)
+      });
+    } else {
+      // Componente non disponibile, cerca alternativa
+      console.log(`⚠️ Componente ${component.name} non disponibile, ricerca alternativa...`);
+      
+      const fallback = await ComponentAlternatives.handlePriceFallback(component);
+      
+      if (fallback) {
+        res.json({
+          available: false,
+          replaced: true,
+          message: `Componente sostituito intelligentemente con: ${fallback.name}`,
+          originalComponent: component,
+          replacement: {
+            asin: fallback.asin,
+            name: fallback.name,
+            price: fallback.price,
+            source: fallback.source,
+            url: fallback.url
+          },
+          fallbackInfo: {
+            originalAsin: component.asin,
+            alternativeAsin: fallback.asin,
+            alternativeName: fallback.name,
+            reason: 'Prodotto originale non disponibile'
+          }
+        });
+      } else {
+        res.json({
+          available: false,
+          replaced: false,
+          message: 'Componente non disponibile e nessuna alternativa trovata',
+          originalComponent: component
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Check availability error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nella verifica della disponibilità del componente' 
+      } 
+    });
+  }
+});
+
+// Applica sostituzione intelligente a una build
+router.post('/builds/:id/smart-replacement', async (req, res) => {
+  try {
+    const buildId = req.params.id;
+    const build = Build.getById(buildId);
+
+    if (!build) {
+      return res.status(404).json({ error: { message: 'Build non trovata' } });
+    }
+
+    console.log(`🔄 Applicazione sostituzione intelligente per build ${buildId}`);
+
+    const components = Component.getByBuildId(buildId).filter(c => c.asin);
+    const results = [];
+
+    for (const component of components) {
+      try {
+        console.log(`\n--- Verifica ${component.name} (${component.asin}) ---`);
+        
+        const { fetchPrice } = await import('../utils/priceUpdater.js');
+        const priceData = await fetchPrice(component.asin, true);
+
+        if (priceData.price && !priceData.isFallback) {
+          // Componente disponibile
+          results.push({
+            componentId: component.id,
+            componentName: component.name,
+            asin: component.asin,
+            status: 'available',
+            price: priceData.price,
+            source: priceData.source,
+            message: 'Componente disponibile'
+          });
+        } else {
+          // Componente non disponibile, cerca alternativa
+          const fallback = await ComponentAlternatives.handlePriceFallback(component);
+          
+          if (fallback) {
+            results.push({
+              componentId: component.id,
+              componentName: component.name,
+              asin: component.asin,
+              status: 'replaced',
+              replacement: {
+                asin: fallback.asin,
+                name: fallback.name,
+                price: fallback.price,
+                source: fallback.source,
+                url: fallback.url
+              },
+              message: `Sostituito intelligentemente con: ${fallback.name}`
+            });
+          } else {
+            results.push({
+              componentId: component.id,
+              componentName: component.name,
+              asin: component.asin,
+              status: 'unavailable',
+              message: 'Non disponibile e nessuna alternativa trovata'
+            });
+          }
+        }
+
+        // Delay tra verifiche
+        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+        
+      } catch (error) {
+        console.error(`❌ Errore verifica ${component.name}:`, error.message);
+        results.push({
+          componentId: component.id,
+          componentName: component.name,
+          asin: component.asin,
+          status: 'error',
+          error: error.message,
+          message: 'Errore nella verifica'
+        });
+      }
+    }
+
+    const summary = {
+      total: results.length,
+      available: results.filter(r => r.status === 'available').length,
+      replaced: results.filter(r => r.status === 'replaced').length,
+      unavailable: results.filter(r => r.status === 'unavailable').length,
+      errors: results.filter(r => r.status === 'error').length
+    };
+
+    res.json({
+      message: `Sostituzione intelligente completata per build ${buildId}`,
+      results,
+      summary
+    });
+  } catch (error) {
+    console.error('Smart replacement error:', error);
+    res.status(500).json({ 
+      error: { 
+        message: 'Errore nell\'applicazione della sostituzione intelligente' 
+      } 
+    });
+  }
+});
+
 
 export default router;

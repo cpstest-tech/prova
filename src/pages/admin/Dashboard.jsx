@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Eye, PlusCircle, TrendingUp } from 'lucide-react';
+import { FileText, Eye, PlusCircle, TrendingUp, DollarSign, Zap, RefreshCw } from 'lucide-react';
 import api from '../../utils/api';
 import { formatNumber } from '../../utils/format';
 import { useAdminTheme } from '../../context/AdminThemeContext';
@@ -8,6 +8,7 @@ import { useAdminTheme } from '../../context/AdminThemeContext';
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [recentBuilds, setRecentBuilds] = useState([]);
+  const [priceStats, setPriceStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const { isDarkMode } = useAdminTheme();
 
@@ -17,12 +18,14 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, buildsRes] = await Promise.all([
+      const [statsRes, buildsRes, priceStatsRes] = await Promise.all([
         api.get('/admin/stats'),
         api.get('/admin/builds'),
+        api.get('/admin/prices/stats'),
       ]);
       setStats(statsRes.data.stats);
       setRecentBuilds(buildsRes.data.builds.slice(0, 5));
+      setPriceStats(priceStatsRes.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -180,6 +183,110 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Price Management */}
+      {priceStats && (
+        <div className="card p-6">
+          <h2 className={`text-xl font-bold mb-4 ${
+            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+          }`}>Gestione Prezzi</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {priceStats.componentStats?.map((stat) => (
+              <div key={stat.tier} className="p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-medium ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>Tier {stat.tier}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    stat.tier === 'A' ? 'bg-green-100 text-green-800' :
+                    stat.tier === 'B' ? 'bg-blue-100 text-blue-800' :
+                    'bg-orange-100 text-orange-800'
+                  }`}>
+                    {stat.tier === 'A' ? 'Alta Priorità' :
+                     stat.tier === 'B' ? 'Media Priorità' : 'Bassa Priorità'}
+                  </span>
+                </div>
+                <div className={`text-2xl font-bold mb-1 ${
+                  isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                }`}>{stat.total}</div>
+                <div className={`text-xs ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  {stat.with_price}/{stat.total} con prezzi
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {priceStats.cacheStats && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className={`font-semibold mb-2 ${
+                isDarkMode ? 'text-gray-100' : 'text-gray-900'
+              }`}>Cache Prezzi</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Totale cache:</span>
+                  <span className={`ml-2 font-medium ${
+                    isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                  }`}>{priceStats.cacheStats.total_cached}</span>
+                </div>
+                <div>
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Cache valide:</span>
+                  <span className={`ml-2 font-medium ${
+                    isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                  }`}>{priceStats.cacheStats.valid_cache}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={async () => {
+                try {
+                  await api.post('/admin/prices/update-tier/A');
+                  alert('Aggiornamento prezzi Tier A completato!');
+                } catch (error) {
+                  alert('Errore nell\'aggiornamento dei prezzi');
+                }
+              }}
+              className="btn-primary btn-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Aggiorna Tier A
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await api.post('/admin/prices/update-tier/B');
+                  alert('Aggiornamento prezzi Tier B completato!');
+                } catch (error) {
+                  alert('Errore nell\'aggiornamento dei prezzi');
+                }
+              }}
+              className="btn-secondary btn-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Aggiorna Tier B
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const result = await api.post('/admin/components/assign-tiers');
+                  alert(`Assegnazione automatica tier completata! ${result.data.assigned} componenti aggiornati.`);
+                } catch (error) {
+                  alert('Errore nell\'assegnazione automatica dei tier');
+                }
+              }}
+              className="btn-secondary btn-sm inline-flex items-center gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Assegna Tier Auto
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="card p-6">
