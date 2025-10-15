@@ -15,6 +15,7 @@ import BuildsList from './pages/admin/BuildsList';
 import BuildEditor from './pages/admin/BuildEditor';
 import ChangePassword from './pages/admin/ChangePassword';
 import AlternativesManager from './pages/admin/AlternativesManager';
+import ReplacementsManager from './pages/admin/ReplacementsManager';
 
 // Components
 import Layout from './components/Layout';
@@ -52,6 +53,7 @@ function App() {
             <Route path="builds/new" element={<BuildEditor />} />
             <Route path="builds/edit/:id" element={<BuildEditor />} />
             <Route path="alternatives" element={<AlternativesManager />} />
+            <Route path="replacements" element={<ReplacementsManager />} />
             <Route path="change-password" element={<ChangePassword />} />
           </Route>
 

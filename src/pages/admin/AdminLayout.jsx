@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Cpu, LayoutDashboard, FileText, LogOut, Menu, X, Key, Moon, Sun, Package } from 'lucide-react';
+import { Cpu, LayoutDashboard, FileText, LogOut, Menu, X, Key, Moon, Sun, Package, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminTheme } from '../../context/AdminThemeContext';
@@ -20,6 +20,7 @@ export default function AdminLayout() {
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Build', href: '/admin/builds', icon: FileText },
     { name: 'Alternative', href: '/admin/alternatives', icon: Package },
+    { name: 'Sostituzioni', href: '/admin/replacements', icon: RotateCcw },
     { name: 'Cambia Password', href: '/admin/change-password', icon: Key },
   ];
 

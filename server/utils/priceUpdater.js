@@ -191,7 +191,7 @@ export async function fetchPrice(asin, forceRefresh = false) {
   // Se non abbiamo trovato un prezzo, prova il fallback
   if (!finalResult.price) {
     console.log(`🔄 Tentativo fallback per ASIN ${asin}`);
-    const fallback = await ComponentAlternatives.handlePriceFallback({ asin });
+    const fallback = await ComponentAlternatives.handlePriceFallback({ asin }, 'cpstest05-21');
     
     if (fallback) {
       finalResult = {

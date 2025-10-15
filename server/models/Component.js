@@ -2,7 +2,27 @@ import db from '../config/database.js';
 
 export class Component {
   static getByBuildId(buildId) {
-    const stmt = db.prepare('SELECT * FROM components WHERE build_id = ? ORDER BY position ASC, id ASC');
+    // Esclude i componenti marcati come sostituiti, mostra solo quelli attivi
+    const stmt = db.prepare(`
+      SELECT * FROM components 
+      WHERE build_id = ? AND is_replaced = 0 
+      ORDER BY position ASC, id ASC
+    `);
+    return stmt.all(buildId);
+  }
+
+  // Metodo per ottenere tutti i componenti inclusi quelli sostituiti (per admin)
+  static getAllByBuildId(buildId) {
+    const stmt = db.prepare(`
+      SELECT c.*, 
+             oc.name as original_name, 
+             oc.asin as original_asin,
+             oc.amazon_link as original_link
+      FROM components c
+      LEFT JOIN components oc ON c.original_component_id = oc.id
+      WHERE c.build_id = ? 
+      ORDER BY c.position ASC, c.id ASC
+    `);
     return stmt.all(buildId);
   }
 
@@ -11,8 +31,9 @@ export class Component {
       INSERT INTO components (
         build_id, type, name, brand, model, price, 
         amazon_link, image_url, specs, position, asin, 
-        price_source, price_updated_at, price_cache_expires_at, tier
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        price_source, price_updated_at, price_cache_expires_at, tier,
+        is_replaced, original_component_id, replacement_reason
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     const result = stmt.run(
@@ -30,7 +51,10 @@ export class Component {
       data.price_source || null,
       data.price_updated_at || null,
       data.price_cache_expires_at || null,
-      data.tier || 'C'
+      data.tier || 'C',
+      data.is_replaced || 0,
+      data.original_component_id || null,
+      data.replacement_reason || null
     );
     
     return result.lastInsertRowid;
@@ -95,6 +119,18 @@ export class Component {
     if (data.tier !== undefined) {
       fields.push('tier = ?');
       values.push(data.tier);
+    }
+    if (data.is_replaced !== undefined) {
+      fields.push('is_replaced = ?');
+      values.push(data.is_replaced);
+    }
+    if (data.original_component_id !== undefined) {
+      fields.push('original_component_id = ?');
+      values.push(data.original_component_id);
+    }
+    if (data.replacement_reason !== undefined) {
+      fields.push('replacement_reason = ?');
+      values.push(data.replacement_reason);
     }
     
     values.push(id);
@@ -180,6 +216,78 @@ export class Component {
   static setTier(componentId, tier) {
     const stmt = db.prepare('UPDATE components SET tier = ? WHERE id = ?');
     return stmt.run(tier, componentId);
+  }
+
+  // Nuovo metodo per sostituire un componente mantenendo l'originale
+  static replaceComponent(originalComponentId, replacementData) {
+    try {
+      // Prima ottieni il componente originale
+      const originalComponent = this.getById(originalComponentId);
+      if (!originalComponent) {
+        throw new Error('Componente originale non trovato');
+      }
+
+      // Aggiorna il componente originale con flag di sostituzione
+      this.update(originalComponentId, {
+        is_replaced: 1,
+        replacement_reason: replacementData.reason || 'Prodotto non disponibile'
+      });
+
+      // Crea il nuovo componente sostitutivo
+      const replacementComponent = this.create({
+        build_id: originalComponent.build_id,
+        type: originalComponent.type,
+        name: replacementData.name,
+        brand: replacementData.brand || originalComponent.brand,
+        model: replacementData.model || originalComponent.model,
+        price: replacementData.price,
+        amazon_link: replacementData.amazon_link,
+        image_url: replacementData.image_url || originalComponent.image_url,
+        specs: replacementData.specs || originalComponent.specs,
+        position: originalComponent.position,
+        asin: replacementData.asin,
+        price_source: replacementData.source || 'replacement',
+        tier: originalComponent.tier,
+        original_component_id: originalComponentId,
+        replacement_reason: replacementData.reason || 'Prodotto non disponibile'
+      });
+
+      console.log(`✅ Componente ${originalComponent.name} sostituito con ${replacementData.name}`);
+      return {
+        original: originalComponent,
+        replacement: this.getById(replacementComponent)
+      };
+    } catch (error) {
+      console.error(`❌ Errore sostituzione componente ${originalComponentId}:`, error.message);
+      throw error;
+    }
+  }
+
+  // Metodo per ripristinare un componente originale
+  static restoreComponent(replacementComponentId) {
+    try {
+      const replacementComponent = this.getById(replacementComponentId);
+      if (!replacementComponent || !replacementComponent.original_component_id) {
+        throw new Error('Componente sostitutivo non trovato o non valido');
+      }
+
+      const originalComponentId = replacementComponent.original_component_id;
+
+      // Ripristina il componente originale
+      this.update(originalComponentId, {
+        is_replaced: 0,
+        replacement_reason: null
+      });
+
+      // Elimina il componente sostitutivo
+      this.delete(replacementComponentId);
+
+      console.log(`✅ Componente ripristinato all'originale (ID: ${originalComponentId})`);
+      return this.getById(originalComponentId);
+    } catch (error) {
+      console.error(`❌ Errore ripristino componente ${replacementComponentId}:`, error.message);
+      throw error;
+    }
   }
 
   static bulkUpdateTiers(updates) {

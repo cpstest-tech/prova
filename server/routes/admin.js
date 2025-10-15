@@ -8,7 +8,7 @@ import { updatePricesForBuild, updatePricesForTier, autoAssignTiers } from '../u
 import { getSchedulerStatus, runManualUpdate } from '../utils/priceScheduler.js';
 import ComponentAlternatives from '../utils/componentAlternatives.js';
 import { AlternativeCategory } from '../models/AlternativeCategory.js';
-import database from '../config/database.js';
+import db from '../config/database.js';
 
 const router = express.Router();
 
@@ -617,6 +617,48 @@ router.get('/alternatives/:asin', (req, res) => {
   }
 });
 
+// Gestione sostituzioni componenti
+router.get('/replacements', requireAdmin, async (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT c.*, 
+             oc.name as original_name, 
+             oc.asin as original_asin,
+             oc.amazon_link as original_link
+      FROM components c
+      LEFT JOIN components oc ON c.original_component_id = oc.id
+      WHERE c.is_replaced = 1 OR c.original_component_id IS NOT NULL
+      ORDER BY c.created_at DESC
+    `);
+    
+    const replacements = stmt.all();
+    
+    res.json({
+      replacements,
+      total: replacements.length
+    });
+  } catch (error) {
+    console.error('Error fetching replacements:', error);
+    res.status(500).json({ error: { message: 'Errore nel recupero delle sostituzioni' } });
+  }
+});
+
+// Ripristina componente originale
+router.post('/replacements/:id/restore', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const restoredComponent = Component.restoreComponent(parseInt(id));
+    
+    res.json({
+      message: 'Componente ripristinato con successo',
+      component: restoredComponent
+    });
+  } catch (error) {
+    console.error('Error restoring component:', error);
+    res.status(500).json({ error: { message: error.message || 'Errore nel ripristino del componente' } });
+  }
+});
+
 // Gestione alternative per categoria
 router.get('/alternative-categories/:id/alternatives', (req, res) => {
   try {
@@ -815,21 +857,29 @@ router.post('/components/:id/check-availability', async (req, res) => {
       // Componente non disponibile, cerca alternativa
       console.log(`⚠️ Componente ${component.name} non disponibile, ricerca alternativa...`);
       
-      const fallback = await ComponentAlternatives.handlePriceFallback(component);
+      // Recupera l'affiliate tag dalla build
+      const build = Build.getById(component.build_id);
+      const affiliateTag = build?.affiliate_tag || 'cpstest05-21';
+      
+      const fallback = await ComponentAlternatives.handlePriceFallback(component, affiliateTag);
       
       if (fallback) {
+        // Usa il nuovo sistema di sostituzione che mantiene l'originale
+        const replacementResult = Component.replaceComponent(component.id, {
+          name: fallback.name,
+          asin: fallback.asin,
+          price: fallback.price,
+          amazon_link: fallback.amazon_link,
+          source: fallback.source,
+          reason: fallback.reason
+        });
+
         res.json({
           available: false,
           replaced: true,
           message: `Componente sostituito intelligentemente con: ${fallback.name}`,
-          originalComponent: component,
-          replacement: {
-            asin: fallback.asin,
-            name: fallback.name,
-            price: fallback.price,
-            source: fallback.source,
-            url: fallback.url
-          },
+          originalComponent: replacementResult.original,
+          replacement: replacementResult.replacement,
           fallbackInfo: {
             originalAsin: component.asin,
             alternativeAsin: fallback.asin,
@@ -893,16 +943,21 @@ router.post('/builds/:id/smart-replacement', async (req, res) => {
           });
         } else {
           // Componente non disponibile, cerca alternativa
-          const fallback = await ComponentAlternatives.handlePriceFallback(component);
+          // Recupera l'affiliate tag dalla build
+          const build = Build.getById(component.build_id);
+          const affiliateTag = build?.affiliate_tag || 'cpstest05-21';
+          
+          const fallback = await ComponentAlternatives.handlePriceFallback(component, affiliateTag);
           
           if (fallback) {
-            // Applica la sostituzione nel database
-            Component.update(component.id, {
+            // Usa il nuovo sistema di sostituzione che mantiene l'originale
+            const replacementResult = Component.replaceComponent(component.id, {
               name: fallback.name,
-              amazon_link: fallback.url || `https://www.amazon.it/dp/${fallback.asin}`,
-              price: fallback.price,
               asin: fallback.asin,
-              specs: `${component.specs || ''}\n\n[SOSTITUZIONE INTELLIGENTE] Sostituito automaticamente da ${component.name}`.trim()
+              price: fallback.price,
+              amazon_link: fallback.amazon_link,
+              source: fallback.source,
+              reason: fallback.reason
             });
             
             console.log(`✅ Sostituito nel database: ${component.name} → ${fallback.name}`);

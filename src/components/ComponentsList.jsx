@@ -88,6 +88,19 @@ export default function ComponentsList({ components }) {
             </div>
             
             
+            {/* Indicatore di sostituzione */}
+            {component.is_replaced === 1 && (
+              <div className="mb-2 p-2 bg-amber-100 border border-amber-300 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-xs font-medium">SOSTITUITO</span>
+                </div>
+                <p className="text-xs text-amber-700 mt-1">
+                  {component.replacement_reason || 'Prodotto originale non disponibile'}
+                </p>
+              </div>
+            )}
+            
             <h3 className="font-bold card-title mb-2 group-hover:text-violet-300 transition-colors">
               {component.name}
             </h3>

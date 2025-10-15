@@ -163,7 +163,7 @@ class ComponentAlternatives {
   }
 
   // Sistema di fallback automatico per componenti senza prezzo
-  static async handlePriceFallback(component) {
+  static async handlePriceFallback(component, affiliateTag = 'cpstest05-21') {
     try {
       if (!component.asin) {
         console.log(`⚠️ Componente ${component.name} senza ASIN, skip fallback`);
@@ -177,13 +177,22 @@ class ComponentAlternatives {
       
       if (alternative) {
         console.log(`✅ Fallback trovato: ${alternative.name} → €${alternative.price}`);
+        
+        // Genera il link Amazon per l'alternativa con affiliate tag
+        let amazonLink = `https://www.amazon.it/dp/${alternative.asin}`;
+        if (affiliateTag) {
+          amazonLink = `${amazonLink}?tag=${affiliateTag}`;
+        }
+        
         return {
           asin: alternative.asin,
           name: alternative.name,
           price: alternative.price,
+          amazon_link: amazonLink,
           source: alternative.source,
           isFallback: true,
-          originalAsin: component.asin
+          originalAsin: component.asin,
+          reason: 'Prodotto originale non disponibile'
         };
       }
 
@@ -196,13 +205,25 @@ class ComponentAlternatives {
         );
         
         console.log(`✅ Fallback generico trovato: ${cheapest.name} → €${cheapest.price}`);
+        
+        // Usa il link Amazon del componente simile se disponibile, altrimenti genera con affiliate tag
+        let amazonLink = cheapest.amazon_link;
+        if (!amazonLink || !amazonLink.includes('tag=')) {
+          amazonLink = `https://www.amazon.it/dp/${cheapest.asin}`;
+          if (affiliateTag) {
+            amazonLink = `${amazonLink}?tag=${affiliateTag}`;
+          }
+        }
+        
         return {
           asin: cheapest.asin,
           name: cheapest.name,
           price: cheapest.price,
+          amazon_link: amazonLink,
           source: 'similar_component',
           isFallback: true,
-          originalAsin: component.asin
+          originalAsin: component.asin,
+          reason: 'Prodotto originale non disponibile'
         };
       }
 

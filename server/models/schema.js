@@ -54,6 +54,28 @@ export function initializeDatabase() {
     console.error('❌ Errore nell\'aggiunta della colonna affiliate_tag:', error.message);
   }
 
+  // Aggiungi colonne per il sistema di sostituzione componenti
+  try {
+    db.exec('ALTER TABLE components ADD COLUMN is_replaced INTEGER DEFAULT 0');
+    console.log('✅ Aggiunta colonna is_replaced alla tabella components');
+  } catch (error) {
+    console.log('⚠️ Colonna is_replaced già esistente o errore:', error.message);
+  }
+
+  try {
+    db.exec('ALTER TABLE components ADD COLUMN original_component_id INTEGER');
+    console.log('✅ Aggiunta colonna original_component_id alla tabella components');
+  } catch (error) {
+    console.log('⚠️ Colonna original_component_id già esistente o errore:', error.message);
+  }
+
+  try {
+    db.exec('ALTER TABLE components ADD COLUMN replacement_reason TEXT');
+    console.log('✅ Aggiunta colonna replacement_reason alla tabella components');
+  } catch (error) {
+    console.log('⚠️ Colonna replacement_reason già esistente o errore:', error.message);
+  }
+
   // Tabella componenti
   db.exec(`
     CREATE TABLE IF NOT EXISTS components (
@@ -73,8 +95,12 @@ export function initializeDatabase() {
       price_updated_at DATETIME,
       price_cache_expires_at DATETIME,
       tier TEXT DEFAULT 'C',
+      is_replaced INTEGER DEFAULT 0,
+      original_component_id INTEGER,
+      replacement_reason TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
+      FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE,
+      FOREIGN KEY (original_component_id) REFERENCES components(id) ON DELETE SET NULL
     )
   `);
 
