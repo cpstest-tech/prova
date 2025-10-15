@@ -401,7 +401,7 @@ router.post('/components/assign-tiers', async (req, res) => {
 // Statistiche sistema prezzi
 router.get('/prices/stats', (req, res) => {
   try {
-    const stats = database.prepare(`
+    const stats = db.prepare(`
       SELECT 
         tier,
         COUNT(*) as total,
@@ -412,7 +412,7 @@ router.get('/prices/stats', (req, res) => {
       GROUP BY tier
     `).all();
 
-    const cacheStats = database.prepare(`
+    const cacheStats = db.prepare(`
       SELECT 
         COUNT(*) as total_cached,
         COUNT(CASE WHEN expires_at > ? THEN 1 END) as valid_cache
