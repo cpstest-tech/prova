@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Type, Image as ImageIcon, X } from 'lucide-react';
+import { Download, Upload, Type, Image as ImageIcon, X, Scissors } from 'lucide-react';
 import { motion } from 'framer-motion';
+import api from '../utils/api';
 
 export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
   const [baseImage, setBaseImage] = useState(null);
@@ -9,8 +10,29 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
   const [textSize, setTextSize] = useState(48);
   const [textPosition, setTextPosition] = useState('center');
   const [generatedImage, setGeneratedImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [removeBackground, setRemoveBackground] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [originalImage, setOriginalImage] = useState(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Gestisce il cambio dell'opzione rimozione sfondo
+  useEffect(() => {
+    if (originalImage && !removingBg) {
+      const processImage = async () => {
+        if (removeBackground) {
+          const noBgImage = await removeBg(originalImage);
+          if (noBgImage) {
+            setBaseImage(noBgImage);
+          }
+        } else {
+          setBaseImage(originalImage);
+        }
+      };
+      processImage();
+    }
+  }, [removeBackground]);
 
   // Genera anteprima automaticamente quando cambiano le impostazioni
   useEffect(() => {
@@ -19,12 +41,70 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
     }
   }, [baseImage, customText, textColor, textSize, textPosition, isOpen]);
 
-  const handleImageUpload = (event) => {
+  const removeBg = async (imageDataUrl) => {
+    try {
+      setRemovingBg(true);
+      
+      // Converti data URL in blob
+      const response = await fetch(imageDataUrl);
+      const blob = await response.blob();
+      
+      // Crea FormData per remove.bg
+      const formData = new FormData();
+      formData.append('size', 'auto');
+      formData.append('image_file', blob);
+      
+      // Chiama l'API di remove.bg
+      const removeBgResponse = await fetch('https://api.remove.bg/v1.0/removebg', {
+        method: 'POST',
+        headers: { 
+          'X-Api-Key': import.meta.env.VITE_REMOVEBG_API_KEY || 'INSERT_YOUR_API_KEY_HERE'
+        },
+        body: formData,
+      });
+      
+      if (removeBgResponse.ok) {
+        const arrayBuffer = await removeBgResponse.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: 'image/png' });
+        
+        // Converti il blob in data URL
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        const errorText = await removeBgResponse.text();
+        throw new Error(`${removeBgResponse.status}: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Error removing background:', error);
+      alert('Errore nella rimozione dello sfondo. Verifica la chiave API e riprova.');
+      return null;
+    } finally {
+      setRemovingBg(false);
+    }
+  };
+
+  const handleImageUpload = async (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setBaseImage(e.target.result);
+      reader.onload = async (e) => {
+        const imageDataUrl = e.target.result;
+        setOriginalImage(imageDataUrl);
+        
+        // Se l'opzione di rimozione sfondo è attiva, processa l'immagine
+        if (removeBackground) {
+          const noBgImage = await removeBg(imageDataUrl);
+          if (noBgImage) {
+            setBaseImage(noBgImage);
+          } else {
+            setBaseImage(imageDataUrl);
+          }
+        } else {
+          setBaseImage(imageDataUrl);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -204,6 +284,40 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
     }
   };
 
+  const uploadThumbnail = async () => {
+    if (!generatedImage) return;
+
+    try {
+      setUploading(true);
+      
+      // Converti il canvas in blob
+      const canvas = canvasRef.current;
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      
+      // Crea FormData per l'upload
+      const formData = new FormData();
+      formData.append('image', blob, `thumbnail-${Date.now()}.png`);
+      
+      // Carica l'immagine al server
+      const response = await api.post('/admin/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      // Passa l'URL dell'immagine caricata al componente padre
+      if (onGenerate) {
+        onGenerate(response.data.url);
+      }
+      
+      // Chiudi il modal
+      handleClose();
+    } catch (error) {
+      console.error('Error uploading thumbnail:', error);
+      alert('Errore nel caricamento della thumbnail');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const downloadThumbnail = () => {
     if (generatedImage) {
       const link = document.createElement('a');
@@ -215,8 +329,10 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
 
   const handleClose = () => {
     setBaseImage(null);
+    setOriginalImage(null);
     setCustomText('');
     setGeneratedImage(null);
+    setRemoveBackground(false);
     onClose();
   };
 
@@ -265,10 +381,20 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={removingBg}
                   className="btn-secondary btn-rounded glass-button glass-liquid glass-interactive btn-md w-full"
                 >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Carica Immagine
+                  {removingBg ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                      Rimozione sfondo...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Carica Immagine
+                    </>
+                  )}
                 </button>
                 {baseImage && (
                   <div className="mt-2">
@@ -276,6 +402,25 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
                   </div>
                 )}
               </div>
+              
+              {/* Remove Background Option */}
+              <div className="mt-3 flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="removeBackground"
+                  checked={removeBackground}
+                  onChange={(e) => setRemoveBackground(e.target.checked)}
+                  disabled={removingBg}
+                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                />
+                <label htmlFor="removeBackground" className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+                  <Scissors className="w-4 h-4 mr-1 text-purple-600" />
+                  Rimuovi sfondo automaticamente
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 ml-1">
+                Utilizza l'API di remove.bg per rimuovere lo sfondo dell'immagine
+              </p>
             </div>
 
             {/* Text Input */}
@@ -367,13 +512,32 @@ export default function ThumbnailGenerator({ onGenerate, isOpen, onClose }) {
             </div>
             
             {generatedImage && (
-              <button
-                onClick={downloadThumbnail}
-                className="btn-primary btn-rounded glass-button glass-liquid glass-interactive btn-md w-full"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Scarica Thumbnail
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={uploadThumbnail}
+                  disabled={uploading}
+                  className="btn-primary btn-rounded glass-button glass-liquid glass-interactive btn-md w-full"
+                >
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Caricamento...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Carica Thumbnail
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={downloadThumbnail}
+                  className="btn-secondary btn-rounded glass-button glass-liquid glass-interactive btn-md w-full"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Scarica Thumbnail
+                </button>
+              </div>
             )}
           </div>
         </div>
